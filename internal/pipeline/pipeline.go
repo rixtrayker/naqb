@@ -92,11 +92,68 @@ func (QAStage) Run(ctx context.Context, in StageInput) (StageOutput, error) {
 	return StageOutput{Message: msg}, nil
 }
 
+// ConflictStage checks for cross-chapter contradictions.
+type ConflictStage struct{ Level string }
+
+func (s ConflictStage) Name() string { return "conflict" }
+func (s ConflictStage) CommitMessage(n int) string {
+	return fmt.Sprintf("conflict(%02d): Chapter %d conflict check complete", n, n)
+}
+func (s ConflictStage) Run(ctx context.Context, in StageInput) (StageOutput, error) {
+	result, err := agents.RunConflictCheck(ctx, in.Client, in.BookDir, in.Cfg, in.ChapterNum, s.Level)
+	if err != nil {
+		return StageOutput{}, err
+	}
+	_ = agents.WriteConflictReport(in.BookDir, result)
+	msg := "Conflict check: no issues"
+	if result.HasIssues {
+		msg = "Conflict check: ⚠ potential conflicts found — see pipeline-report.md"
+	}
+	return StageOutput{Message: msg}, nil
+}
+
+// GapStage checks whether the chapter covers its outline fully.
+type GapStage struct{ Level string }
+
+func (s GapStage) Name() string { return "gap" }
+func (s GapStage) CommitMessage(n int) string {
+	return fmt.Sprintf("gap(%02d): Chapter %d gap analysis complete", n, n)
+}
+func (s GapStage) Run(ctx context.Context, in StageInput) (StageOutput, error) {
+	result, err := agents.RunGapAnalysis(ctx, in.Client, in.BookDir, in.Cfg, in.ChapterNum, s.Level)
+	if err != nil {
+		return StageOutput{}, err
+	}
+	_ = agents.WriteGapReport(in.BookDir, result)
+	msg := "Gap analysis: outline well-covered"
+	if result.HasGaps {
+		msg = "Gap analysis: ⚠ coverage gaps found — see pipeline-report.md"
+	}
+	return StageOutput{Message: msg}, nil
+}
+
 // DefaultStages is the standard chapter pipeline (context → write → qa).
+// For pipelines with conflict/gap checks use DefaultStagesFor instead.
 var DefaultStages = []Stage{
 	ContextStage{},
 	WriteStage{},
 	QAStage{},
+}
+
+// DefaultStagesFor returns the stage list for a chapter pipeline, conditionally
+// appending ConflictStage and GapStage based on rules.yaml settings.
+func DefaultStagesFor(rules *config.Rules) []Stage {
+	stages := []Stage{ContextStage{}, WriteStage{}, QAStage{}}
+	if rules == nil {
+		return stages
+	}
+	if rules.QA.ConflictLevel != "off" && rules.QA.ConflictLevel != "" {
+		stages = append(stages, ConflictStage{Level: rules.QA.ConflictLevel})
+	}
+	if rules.QA.GapLevel != "off" && rules.QA.GapLevel != "" {
+		stages = append(stages, GapStage{Level: rules.QA.GapLevel})
+	}
+	return stages
 }
 
 // ── Runner ───────────────────────────────────────────────────────────────────
@@ -132,10 +189,11 @@ func Run(ctx context.Context, stages []Stage, in StageInput) error {
 	return nil
 }
 
-// RunChapterPipeline runs the default stages (context + write + qa) for a chapter.
-// This is the main entry point used by the pipeline CLI command.
+// RunChapterPipeline runs the full stage set (context + write + qa + optional
+// conflict + gap) for a chapter. Rules are loaded from config/rules.yaml.
 func RunChapterPipeline(ctx context.Context, client llm.Provider, bookDir string, cfg *config.BookConfig, chapterNum int, out io.Writer) error {
-	return Run(ctx, DefaultStages, StageInput{
+	rules, _ := config.LoadRules(bookDir)
+	return Run(ctx, DefaultStagesFor(rules), StageInput{
 		BookDir:    bookDir,
 		Cfg:        cfg,
 		Client:     client,
