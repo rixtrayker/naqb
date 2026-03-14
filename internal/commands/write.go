@@ -9,6 +9,8 @@ import (
 
 	"github.com/amr/naqb/internal/agents"
 	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/internal/log"
+	"github.com/amr/naqb/internal/search"
 	"github.com/amr/naqb/internal/tui"
 )
 
@@ -40,10 +42,12 @@ func WriteCmd() *cobra.Command {
 				return err
 			}
 
+			ctx := context.Background()
+
 			if stream {
 				// Streaming mode: print tokens as they arrive
 				fmt.Printf("Writing chapter %d (streaming)...\n\n", chapterNum)
-				path, err := agents.WriteChapter(context.Background(), client, bookDir, cfg, chapterNum, func(delta string) error {
+				path, err := agents.WriteChapter(ctx, client, bookDir, cfg, chapterNum, func(delta string) error {
 					fmt.Print(delta)
 					return nil
 				})
@@ -52,6 +56,7 @@ func WriteCmd() *cobra.Command {
 					return err
 				}
 				fmt.Printf("\n✓ Chapter written → %s\n", path)
+				indexChapter(ctx, bookDir, chapterNum, path)
 				return nil
 			}
 
@@ -60,13 +65,14 @@ func WriteCmd() *cobra.Command {
 			var path string
 			err = tui.RunWithSpinner(label, func() error {
 				var writeErr error
-				path, writeErr = agents.WriteChapter(context.Background(), client, bookDir, cfg, chapterNum, nil)
+				path, writeErr = agents.WriteChapter(ctx, client, bookDir, cfg, chapterNum, nil)
 				return writeErr
 			}, os.Stdout)
 			if err != nil {
 				return err
 			}
 			fmt.Printf("✓ Chapter written → %s\n", path)
+			indexChapter(ctx, bookDir, chapterNum, path)
 			return nil
 		},
 	}
@@ -84,4 +90,19 @@ func chapterTitle(cfg *config.BookConfig, n int) string {
 		}
 	}
 	return fmt.Sprintf("Chapter %d", n)
+}
+
+// indexChapter adds the written chapter to the vector store (best-effort).
+func indexChapter(ctx context.Context, bookDir string, chapterNum int, filePath string) {
+	store, err := search.Open(bookDir)
+	if err != nil {
+		log.Warn("vector index: failed to open store", "err", err)
+		return
+	}
+	defer store.Close()
+	if indexErr := store.IndexChapter(ctx, bookDir, chapterNum, filePath); indexErr != nil {
+		log.Warn("vector index: failed to index chapter", "chapter", chapterNum, "err", indexErr)
+		return
+	}
+	log.Info("vector index: chapter indexed", "chapter", chapterNum)
 }

@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/internal/search"
 )
 
 const contextTemplate = `# ROLE
@@ -70,6 +72,12 @@ type contextData struct {
 
 // BuildContext assembles the single-shot context file for chapter n.
 func BuildContext(bookDir string, cfg *config.BookConfig, chapterNum int) (string, error) {
+	return BuildContextWithCtx(context.Background(), bookDir, cfg, chapterNum)
+}
+
+// BuildContextWithCtx assembles the single-shot context file for chapter n.
+// It uses the vector store for semantic research retrieval when available.
+func BuildContextWithCtx(ctx context.Context, bookDir string, cfg *config.BookConfig, chapterNum int) (string, error) {
 	// Find the chapter config
 	var ch *config.Chapter
 	for i := range cfg.Chapters {
@@ -88,8 +96,20 @@ func BuildContext(bookDir string, cfg *config.BookConfig, chapterNum int) (strin
 	// Build finished chapter summaries
 	finishedSummaries := buildFinishedSummaries(cfg, chapterNum)
 
-	// Read research notes
-	researchNotes := readResearchNotes(filepath.Join(bookDir, "research"))
+	// Research notes: try semantic search first, fall back to file scan.
+	researchNotes := buildResearchNotes(ctx, bookDir, ch.Title, ch.Summary)
+	if researchNotes == "" {
+		// Fallback: read all notes from both dirs (no vector store / no embedder)
+		researchNotes = readResearchNotes(filepath.Join(bookDir, "research"))
+		autoNotes := readResearchNotes(filepath.Join(bookDir, ".naqb", "research"))
+		if autoNotes != "" {
+			if researchNotes != "" {
+				researchNotes += "\n\n" + autoNotes
+			} else {
+				researchNotes = autoNotes
+			}
+		}
+	}
 
 	// Determine language descriptions
 	langDesc, termsDesc, hasCode := languageDescs(cfg.Language, cfg.Domain)
@@ -126,7 +146,7 @@ func BuildContext(bookDir string, cfg *config.BookConfig, chapterNum int) (strin
 
 // WriteContextFile builds the context and saves it to contexts/ch-XX-context.md.
 func WriteContextFile(bookDir string, cfg *config.BookConfig, chapterNum int) (string, error) {
-	content, err := BuildContext(bookDir, cfg, chapterNum)
+	content, err := BuildContextWithCtx(context.Background(), bookDir, cfg, chapterNum)
 	if err != nil {
 		return "", err
 	}
@@ -197,6 +217,40 @@ func buildFinishedSummaries(cfg *config.BookConfig, currentChapter int) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+// buildResearchNotes queries the vector store for semantically relevant
+// research notes. Returns "" if the store has no embedder or no indexed docs.
+func buildResearchNotes(ctx context.Context, bookDir, chapterTitle, chapterSummary string) string {
+	store, err := search.Open(bookDir)
+	if err != nil || !store.HasEmbedder() {
+		return ""
+	}
+	defer store.Close()
+
+	query := chapterTitle
+	if chapterSummary != "" {
+		query = chapterTitle + ". " + chapterSummary
+	}
+
+	results, err := store.QueryResearch(ctx, query, 5)
+	if err != nil || len(results) == 0 {
+		return ""
+	}
+
+	var parts []string
+	for _, r := range results {
+		name := r.ID
+		if r.Path != "" {
+			name = filepath.Base(r.Path)
+		}
+		content := r.Content
+		if len(content) > 2000 {
+			content = content[:2000] + "\n... (truncated)"
+		}
+		parts = append(parts, fmt.Sprintf("### %s\n%s", name, content))
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func readResearchNotes(researchDir string) string {

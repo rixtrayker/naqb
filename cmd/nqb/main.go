@@ -41,6 +41,8 @@ func main() {
 		commands.ChatCmd(),
 		commands.StatusCmd(),
 		commands.ConfigCmd(),
+		commands.ResearchCmd(),
+		commands.IndexCmd(),
 		vault.Cmd(),
 		commands.CompletionCmd(rootCmd),
 	)
