@@ -101,7 +101,8 @@ type BookViewModel struct {
 	bookDir      string
 	cfg          *config.BookConfig
 	client       llm.Provider
-	cursor       int // selected chapter index
+	cursor       int        // selected chapter index
+	activeTab    sidebarTab // which sidebar tab is shown
 	width        int
 	height       int
 	showPalette  bool
@@ -190,6 +191,11 @@ func (m *BookViewModel) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.paletteInput.Focus()
 		m.paletteInput.SetCursor(1)
 		return m, textinput.Blink
+
+	case "tab":
+		m.activeTab = (m.activeTab + 1) % tabCount
+	case "shift+tab":
+		m.activeTab = (m.activeTab - 1 + tabCount) % tabCount
 
 	case "up", "k":
 		if m.cursor > 0 {
@@ -308,15 +314,13 @@ func (m *BookViewModel) View() string {
 }
 
 func (m *BookViewModel) renderSidebar() string {
+	sidebarW := 22
+	tabBar := renderTabBar(m.activeTab, sidebarW)
+	content := renderSidebarContent(m.activeTab, m.bookDir, m.cfg, sidebarActions)
+
 	var sb strings.Builder
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Faint(true).PaddingLeft(1).Render("ACTIONS") + "\n\n")
-	for _, a := range sidebarActions {
-		line := fmt.Sprintf("%s  %s",
-			bvSidebarKeyStyle.Render(a.key),
-			bvSidebarLabelStyle.Render(a.label),
-		)
-		sb.WriteString(" " + line + "\n")
-	}
+	sb.WriteString(tabBar + "\n\n")
+	sb.WriteString(content)
 	return bvSidebarStyle.Render(sb.String())
 }
 

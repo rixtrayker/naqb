@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/internal/wordcount"
 )
 
 // ── checkHeadingHierarchy ────────────────────────────────────────────────────
@@ -97,7 +98,7 @@ func TestCheckCalloutSyntax_Bad(t *testing.T) {
 	}
 }
 
-// ── countWords ───────────────────────────────────────────────────────────────
+// ── wordcount.Count ───────────────────────────────────────────────────────────
 
 func TestCountWords(t *testing.T) {
 	cases := []struct {
@@ -111,8 +112,8 @@ func TestCountWords(t *testing.T) {
 		{"مرحبا بالعالم", 2}, // Arabic words
 	}
 	for _, tc := range cases {
-		if got := countWords(tc.input); got != tc.want {
-			t.Errorf("countWords(%q) = %d, want %d", tc.input, got, tc.want)
+		if got := wordcount.Count(tc.input); got != tc.want {
+			t.Errorf("wordcount.Count(%q) = %d, want %d", tc.input, got, tc.want)
 		}
 	}
 }
@@ -138,14 +139,14 @@ Here is some content.
 
 ` + makeWords(100)
 
-	issues := runDeterministicChecks(chapter, &config.BookConfig{TargetWords: 1000})
+	issues := runDeterministicChecks(chapter, &config.BookConfig{TargetWords: 1000}, nil)
 	if len(issues) > 0 {
 		t.Errorf("expected no issues, got: %v", issues)
 	}
 }
 
 func TestRunDeterministicChecks_TooShort(t *testing.T) {
-	issues := runDeterministicChecks("## Chapter\n\nToo short.", &config.BookConfig{TargetWords: 1000})
+	issues := runDeterministicChecks("## Chapter\n\nToo short.", &config.BookConfig{TargetWords: 1000}, nil)
 	found := false
 	for _, i := range issues {
 		if contains(i, "Word count too low") {
@@ -158,8 +159,8 @@ func TestRunDeterministicChecks_TooShort(t *testing.T) {
 }
 
 func TestRunDeterministicChecks_NilConfig(t *testing.T) {
-	// nil cfg should use defaults (500 min); a tiny chapter still fails
-	issues := runDeterministicChecks("## Hi\n\nShort.", nil)
+	// nil cfg and nil rules should use defaults (500 min); a tiny chapter still fails
+	issues := runDeterministicChecks("## Hi\n\nShort.", nil, nil)
 	found := false
 	for _, i := range issues {
 		if contains(i, "Word count too low") {

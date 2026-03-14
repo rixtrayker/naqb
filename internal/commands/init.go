@@ -10,7 +10,6 @@ import (
 
 	"github.com/amr/naqb/internal/agents"
 	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/llm"
 	"github.com/amr/naqb/internal/log"
 	"github.com/amr/naqb/internal/pipeline"
 	"github.com/amr/naqb/internal/tui"
@@ -80,11 +79,12 @@ func runInitWithAnswersAt(answers agents.InterviewAnswers, dir string, noGit boo
 	log.Info("init start", "title", answers.Title, "dir", bookDir, "template", answers.Template, "language", answers.Language)
 	fmt.Printf("\nGenerating book plan with Claude Haiku...\n")
 
-	apiKey, err := config.APIKey()
+	// Init stage uses a lightweight provider — defaults to global default.
+	// BookConfig doesn't exist yet so there's no per-book init provider to read.
+	client, err := providerFor("", "")
 	if err != nil {
 		return err
 	}
-	client := llm.New(apiKey)
 
 	// Apply template overrides if language matches
 	tmpl := config.TemplateByID(answers.Template)

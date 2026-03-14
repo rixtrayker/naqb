@@ -9,7 +9,6 @@ import (
 
 	"github.com/amr/naqb/internal/agents"
 	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/llm"
 	"github.com/amr/naqb/internal/tui"
 )
 
@@ -17,6 +16,7 @@ import (
 func WriteCmd() *cobra.Command {
 	var chapterNum int
 	var stream bool
+	var providerFlag string
 
 	cmd := &cobra.Command{
 		Use:   "write",
@@ -35,11 +35,10 @@ func WriteCmd() *cobra.Command {
 				return err
 			}
 
-			apiKey, err := config.APIKey()
+			client, err := providerFor(providerFlag, cfg.LLM.WriteProvider)
 			if err != nil {
 				return err
 			}
-			client := llm.New(apiKey)
 
 			if stream {
 				// Streaming mode: print tokens as they arrive
@@ -74,6 +73,7 @@ func WriteCmd() *cobra.Command {
 
 	cmd.Flags().IntVarP(&chapterNum, "chapter", "c", 0, "Chapter number")
 	cmd.Flags().BoolVarP(&stream, "stream", "s", false, "Stream output to terminal instead of spinner")
+	cmd.Flags().StringVarP(&providerFlag, "provider", "p", "", "Named provider from ~/.naqb/config.yaml (overrides book.yaml)")
 	return cmd
 }
 

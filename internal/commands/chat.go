@@ -12,9 +12,11 @@ import (
 	"github.com/amr/naqb/internal/tui"
 )
 
+
 // ChatCmd returns the `book chat` command.
 func ChatCmd() *cobra.Command {
 	var chapterNum int
+	var providerFlag string
 
 	cmd := &cobra.Command{
 		Use:   "chat",
@@ -29,11 +31,10 @@ func ChatCmd() *cobra.Command {
 				return err
 			}
 
-			apiKey, err := config.APIKey()
+			client, err := providerFor(providerFlag, cfg.LLM.ChatProvider)
 			if err != nil {
 				return err
 			}
-			client := llm.New(apiKey)
 
 			// Build system prompt with book context
 			system := buildChatSystem(cfg, chapterNum, bookDir)
@@ -50,6 +51,7 @@ func ChatCmd() *cobra.Command {
 	}
 
 	cmd.Flags().IntVarP(&chapterNum, "chapter", "c", 0, "Focus on a specific chapter (optional)")
+	cmd.Flags().StringVarP(&providerFlag, "provider", "p", "", "Named provider from ~/.naqb/config.yaml (overrides book.yaml)")
 	return cmd
 }
 

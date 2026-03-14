@@ -9,7 +9,6 @@ import (
 
 	"github.com/amr/naqb/internal/agents"
 	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/llm"
 	"github.com/amr/naqb/internal/tui"
 )
 
@@ -17,6 +16,7 @@ import (
 func QACmd() *cobra.Command {
 	var chapterNum int
 	var deterministicOnly bool
+	var providerFlag string
 
 	cmd := &cobra.Command{
 		Use:   "qa",
@@ -35,12 +35,6 @@ func QACmd() *cobra.Command {
 				return err
 			}
 
-			apiKey, err := config.APIKey()
-			if err != nil {
-				return err
-			}
-			client := llm.New(apiKey)
-
 			var result *agents.QAResult
 			label := fmt.Sprintf("Running QA on Chapter %d", chapterNum)
 
@@ -48,9 +42,12 @@ func QACmd() *cobra.Command {
 				var qaErr error
 				ctx := context.Background()
 				if deterministicOnly {
-					// Skip LLM: pass nil client effectively
 					result, qaErr = agents.RunQA(ctx, nil, bookDir, cfg, chapterNum)
 				} else {
+					client, clientErr := providerFor(providerFlag, cfg.LLM.QAProvider)
+					if clientErr != nil {
+						return clientErr
+					}
 					result, qaErr = agents.RunQA(ctx, client, bookDir, cfg, chapterNum)
 				}
 				return qaErr
@@ -88,5 +85,6 @@ func QACmd() *cobra.Command {
 
 	cmd.Flags().IntVarP(&chapterNum, "chapter", "c", 0, "Chapter number")
 	cmd.Flags().BoolVarP(&deterministicOnly, "deterministic-only", "d", false, "Skip LLM audit")
+	cmd.Flags().StringVarP(&providerFlag, "provider", "p", "", "Named provider from ~/.naqb/config.yaml (overrides book.yaml)")
 	return cmd
 }

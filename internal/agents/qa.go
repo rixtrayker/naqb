@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/amr/naqb/internal/config"
 	"github.com/amr/naqb/internal/llm"
 	"github.com/amr/naqb/internal/log"
+	"github.com/amr/naqb/internal/wordcount"
 )
 
 // QAResult holds the results of a QA check on a chapter.
@@ -39,7 +39,8 @@ func RunQA(ctx context.Context, client llm.Provider, bookDir string, cfg *config
 	log.Debug("QA: chapter loaded", "chapter", chapterNum, "bytes", len(data))
 
 	// --- Deterministic checks ---
-	issues := runDeterministicChecks(content, cfg)
+	rules, _ := config.LoadRules(bookDir)
+	issues := runDeterministicChecks(content, cfg, rules)
 	result.Issues = issues
 	result.DeterministicOK = len(issues) == 0
 
@@ -105,7 +106,7 @@ func WriteQAReport(bookDir string, result *QAResult) error {
 	return err
 }
 
-func runDeterministicChecks(content string, cfg *config.BookConfig) []string {
+func runDeterministicChecks(content string, cfg *config.BookConfig, rules *config.Rules) []string {
 	var issues []string
 
 	lines := strings.Split(content, "\n")
@@ -120,20 +121,20 @@ func runDeterministicChecks(content string, cfg *config.BookConfig) []string {
 		issues = append(issues, cl)
 	}
 
-	// 3. Word count check
-	wordCount := countWords(content)
-	minWords := 500
-	maxWords := 8000
-	if cfg != nil {
-		if cfg.TargetWords > 0 {
-			minWords = cfg.TargetWords / 2
-			maxWords = cfg.TargetWords * 3
-		}
+	// 3. Word count check — prefer rules.yaml limits, fall back to book.yaml target
+	wc := wordcount.Count(content)
+	minW, maxW := 500, 8000
+	if rules != nil && rules.WordCount.Target > 0 {
+		minW = rules.WordCount.Min
+		maxW = rules.WordCount.Max
+	} else if cfg != nil && cfg.TargetWords > 0 {
+		minW = cfg.TargetWords / 2
+		maxW = cfg.TargetWords * 3
 	}
-	if wordCount < minWords {
-		issues = append(issues, fmt.Sprintf("Word count too low: %d words (minimum %d)", wordCount, minWords))
-	} else if wordCount > maxWords {
-		issues = append(issues, fmt.Sprintf("Word count too high: %d words (maximum %d)", wordCount, maxWords))
+	if wc < minW {
+		issues = append(issues, fmt.Sprintf("Word count too low: %d words (minimum %d)", wc, minW))
+	} else if wc > maxW {
+		issues = append(issues, fmt.Sprintf("Word count too high: %d words (maximum %d)", wc, maxW))
 	}
 
 	// 4. ADHD callout syntax check
@@ -196,18 +197,6 @@ func checkCodeBlockLanguages(content string) string {
 		return fmt.Sprintf("%d code block(s) missing language tag", unlabeled)
 	}
 	return ""
-}
-
-func countWords(content string) int {
-	// Simple word count: split on whitespace
-	fields := strings.Fields(content)
-	count := 0
-	for _, f := range fields {
-		if utf8.RuneCountInString(f) > 0 {
-			count++
-		}
-	}
-	return count
 }
 
 func checkCalloutSyntax(content string) string {

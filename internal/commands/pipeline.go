@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/llm"
 	"github.com/amr/naqb/internal/pipeline"
 )
 
@@ -16,6 +15,7 @@ import (
 func PipelineCmd() *cobra.Command {
 	var chapterNum int
 	var all bool
+	var providerFlag string
 
 	cmd := &cobra.Command{
 		Use:   "pipeline",
@@ -30,11 +30,12 @@ func PipelineCmd() *cobra.Command {
 				return err
 			}
 
-			apiKey, err := config.APIKey()
+			// Pipeline uses the write provider as the default for all stages.
+			// Individual stage providers can be overridden in book.yaml if needed.
+			client, err := providerFor(providerFlag, cfg.LLM.WriteProvider)
 			if err != nil {
 				return err
 			}
-			client := llm.New(apiKey)
 			ctx := context.Background()
 
 			if all {
@@ -59,5 +60,6 @@ func PipelineCmd() *cobra.Command {
 
 	cmd.Flags().IntVarP(&chapterNum, "chapter", "c", 0, "Chapter number")
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "Run pipeline for all chapters")
+	cmd.Flags().StringVarP(&providerFlag, "provider", "p", "", "Named provider from ~/.naqb/config.yaml (overrides book.yaml)")
 	return cmd
 }

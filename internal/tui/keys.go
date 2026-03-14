@@ -71,12 +71,12 @@ var HomeSearchHint = []Binding{
 // BookViewBindings are the sidebar keybindings shown in the book TUI footer.
 var BookViewBindings = []Binding{
 	{Key: "↑/↓", Desc: "Chapter"},
-	{Key: "/", Desc: "Command palette"},
+	{Key: "Tab", Desc: "Sidebar tab"},
+	{Key: "/", Desc: "Palette"},
 	{Key: "w", Desc: "Write"},
 	{Key: "q", Desc: "QA"},
 	{Key: "e", Desc: "Export"},
 	{Key: "p", Desc: "Preview"},
-	{Key: "o", Desc: "Outline"},
 	{Key: "~", Desc: "Chat"},
 	{Key: "?", Desc: "Help"},
 	{Key: "Ctrl+C", Desc: "Back"},
@@ -107,6 +107,13 @@ var BookViewHelpSections = []HelpSection{
 			{Key: "p", Desc: "Preview chapter (/preview)"},
 			{Key: "e", Desc: "Export book     (/export)"},
 			{Key: "~", Desc: "Chat with Opus  (/chat)"},
+		},
+	},
+	{
+		Title: "Sidebar tabs",
+		Bindings: []Binding{
+			{Key: "Tab", Desc: "Cycle tab forward  (Actions→Notes→Todos→Stats→QA→Git)"},
+			{Key: "Shift+Tab", Desc: "Cycle tab backward"},
 		},
 	},
 	{

@@ -116,8 +116,8 @@ func openBookAt(bookDir string) error {
 
 	// Get API client (optional — book view works without it for navigation)
 	var client llm.Provider
-	if apiKey, err := config.APIKey(); err == nil {
-		client = llm.New(apiKey)
+	if p, err := providerFor("", cfg.LLM.WriteProvider); err == nil {
+		client = p
 	}
 
 	return tui.RunBookView(bookDir, cfg, client)
