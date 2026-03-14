@@ -30,7 +30,7 @@ type InterviewAnswers struct {
 }
 
 // RunPlanner takes interview answers and generates book.yaml + outline.md via LLM.
-func RunPlanner(ctx context.Context, client *llm.Client, answers InterviewAnswers) (*PlannerResult, error) {
+func RunPlanner(ctx context.Context, client llm.Provider, answers InterviewAnswers) (*PlannerResult, error) {
 	log.Info("planner start", "title", answers.Title, "language", answers.Language, "chapters", answers.NumChapters, "template", answers.Template)
 	systemPrompt := `You are an expert book planner. Given information about a book project,
 you will produce a structured chapter outline.

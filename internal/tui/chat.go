@@ -33,7 +33,7 @@ type streamDoneMsg struct {
 
 // ChatModel is the Bubble Tea model for the book chat REPL.
 type ChatModel struct {
-	client    *llm.Client
+	client    llm.Provider
 	model     string
 	system    string
 	history   []llm.Message
@@ -48,7 +48,7 @@ type ChatModel struct {
 }
 
 // NewChatModel creates a new chat REPL model.
-func NewChatModel(ctx context.Context, client *llm.Client, model, system string) *ChatModel {
+func NewChatModel(ctx context.Context, client llm.Provider, model, system string) *ChatModel {
 	ta := textarea.New()
 	ta.Placeholder = "Ask about your book... (Enter to send, Ctrl+C to quit)"
 	ta.Focus()
@@ -204,7 +204,7 @@ func (m *ChatModel) sendMessage(text string) tea.Cmd {
 // The standard approach is to use a command that reads from the channel.
 
 // RunChat starts the Bubble Tea chat REPL.
-func RunChat(ctx context.Context, client *llm.Client, model, system string) error {
+func RunChat(ctx context.Context, client llm.Provider, model, system string) error {
 	m := NewChatModel(ctx, client, model, system)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()

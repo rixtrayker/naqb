@@ -19,20 +19,14 @@ import (
 // DefaultVaultName is the name of the built-in default vault.
 const DefaultVaultName = "default"
 
-// NaqbDir returns ~/.naqb — the global config/vault directory.
-func NaqbDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".naqb")
-}
-
-// DefaultVaultPath returns ~/sabr/projects — the default book storage location.
+// DefaultVaultPath returns the default book storage location inside ~/.naqb.
 func DefaultVaultPath() string {
-	return filepath.Join(NaqbDir(), "projects")
+	return filepath.Join(config.NaqbDir(), "projects")
 }
 
 // RegistryPath returns the path to the vault registry YAML.
 func RegistryPath() string {
-	return filepath.Join(NaqbDir(), "vault.yaml")
+	return filepath.Join(config.NaqbDir(), "vault.yaml")
 }
 
 // VaultEntry represents one registered vault.

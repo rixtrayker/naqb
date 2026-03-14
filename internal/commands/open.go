@@ -115,7 +115,7 @@ func openBookAt(bookDir string) error {
 	_ = vault.RecordRecent(bookDir, cfg.Title, cfg.Language)
 
 	// Get API client (optional — book view works without it for navigation)
-	var client *llm.Client
+	var client llm.Provider
 	if apiKey, err := config.APIKey(); err == nil {
 		client = llm.New(apiKey)
 	}

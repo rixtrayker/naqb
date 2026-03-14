@@ -34,16 +34,32 @@ func ConfigCmd() *cobra.Command {
 			fmt.Printf("Config file:  %s\n", config.GlobalConfigPath())
 			fmt.Printf("Log file:     %s  (set NQB_DEBUG=1 for verbose logs)\n\n", log.LogPath())
 			if cfg.APIKey != "" {
-				masked := maskKey(cfg.APIKey)
-				fmt.Printf("api_key: %s\n", masked)
+				fmt.Printf("api_key:          %s  (legacy)\n", maskKey(cfg.APIKey))
 			} else {
-				fmt.Printf("api_key: (not set — set with: book config --set-key)\n")
+				fmt.Printf("api_key:          (not set — use 'nqb config --set-key' or set ANTHROPIC_API_KEY)\n")
+			}
+			if cfg.DefaultProvider != "" {
+				fmt.Printf("default_provider: %s\n", cfg.DefaultProvider)
+			}
+			if len(cfg.Providers) > 0 {
+				fmt.Printf("providers:\n")
+				for name, p := range cfg.Providers {
+					keyDisplay := "(no key)"
+					if p.APIKey != "" {
+						keyDisplay = maskKey(p.APIKey)
+					}
+					if p.BaseURL != "" {
+						fmt.Printf("  %-20s  type=%-14s  key=%s  base_url=%s\n", name, p.Type, keyDisplay, p.BaseURL)
+					} else {
+						fmt.Printf("  %-20s  type=%-14s  key=%s\n", name, p.Type, keyDisplay)
+					}
+				}
 			}
 			if cfg.DefaultModel != "" {
-				fmt.Printf("default_model: %s\n", cfg.DefaultModel)
+				fmt.Printf("default_model:    %s\n", cfg.DefaultModel)
 			}
 			if cfg.Editor != "" {
-				fmt.Printf("editor: %s\n", cfg.Editor)
+				fmt.Printf("editor:           %s\n", cfg.Editor)
 			}
 
 			// Also try to open in editor if EDITOR is set

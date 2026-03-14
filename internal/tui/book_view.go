@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/amr/naqb/internal/agents"
 	"github.com/amr/naqb/internal/config"
 	"github.com/amr/naqb/internal/llm"
 )
@@ -102,7 +100,7 @@ type bookTaskMsg struct {
 type BookViewModel struct {
 	bookDir      string
 	cfg          *config.BookConfig
-	client       *llm.Client
+	client       llm.Provider
 	cursor       int // selected chapter index
 	width        int
 	height       int
@@ -115,7 +113,7 @@ type BookViewModel struct {
 }
 
 // NewBookView creates the book TUI model.
-func NewBookView(bookDir string, cfg *config.BookConfig, client *llm.Client) *BookViewModel {
+func NewBookView(bookDir string, cfg *config.BookConfig, client llm.Provider) *BookViewModel {
 	pi := textinput.New()
 	pi.Placeholder = "type command... e.g. /write --chapter 1"
 	pi.CharLimit = 200
@@ -263,133 +261,6 @@ func (m *BookViewModel) runCommand(input string) tea.Cmd {
 	}
 }
 
-// dispatchCommand parses a slash command and executes the appropriate action.
-func dispatchCommand(input, bookDir string, cfg *config.BookConfig, client *llm.Client, defaultChapter int) (string, error) {
-	parts := strings.Fields(input)
-	if len(parts) == 0 {
-		return "", nil
-	}
-
-	cmd := strings.TrimPrefix(parts[0], "/")
-	chNum := defaultChapter
-	format := "pdf"
-
-	// Parse flags
-	for i := 1; i < len(parts); i++ {
-		if parts[i] == "--chapter" || parts[i] == "-c" {
-			if i+1 < len(parts) {
-				fmt.Sscanf(parts[i+1], "%d", &chNum)
-				i++
-			}
-		}
-		if parts[i] == "--format" || parts[i] == "-f" {
-			if i+1 < len(parts) {
-				format = parts[i+1]
-				i++
-			}
-		}
-	}
-
-	ctx := context.Background()
-
-	switch cmd {
-	case "write", "w":
-		path, err := agents.WriteContextFile(bookDir, cfg, chNum)
-		if err != nil {
-			return "", fmt.Errorf("context: %w", err)
-		}
-		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("Context → %s\n", path))
-		chPath, err := agents.WriteChapter(ctx, client, bookDir, cfg, chNum, func(delta string) error {
-			sb.WriteString(delta)
-			return nil
-		})
-		if err != nil {
-			return sb.String(), fmt.Errorf("write: %w", err)
-		}
-		sb.WriteString(fmt.Sprintf("\n\nChapter → %s", chPath))
-		return sb.String(), nil
-
-	case "qa", "q":
-		result, err := agents.RunQA(ctx, client, bookDir, cfg, chNum)
-		if err != nil {
-			return "", err
-		}
-		_ = agents.WriteQAReport(bookDir, result)
-		if result.Passed {
-			return "QA passed: " + result.DeterministicMsg, nil
-		}
-		return "QA issues:\n" + strings.Join(result.Issues, "\n"), nil
-
-	case "export", "e":
-		return runExport(bookDir, cfg, format)
-
-	case "status", "s":
-		return buildStatusText(bookDir, cfg), nil
-
-	case "context":
-		path, err := agents.WriteContextFile(bookDir, cfg, chNum)
-		if err != nil {
-			return "", err
-		}
-		return "Context → " + path, nil
-
-	case "preview", "p":
-		return renderPreview(bookDir, cfg, chNum)
-
-	case "help", "?":
-		return buildHelp(), nil
-
-	case "watch", "W":
-		return "(Watch mode — use 'nqb watch' from CLI for daemon mode)", nil
-
-	case "chat", "~":
-		// Chat can't run inline — signal caller
-		return "(Opening chat — use 'nqb chat' from CLI)", nil
-
-	case "outline", "o":
-		return "(Opening outline editor — use 'nqb outline' from CLI)", nil
-
-	default:
-		return "", fmt.Errorf("unknown command: /%s  (try /help)", cmd)
-	}
-}
-
-func runExport(bookDir string, cfg *config.BookConfig, format string) (string, error) {
-	// Import exporter inline to avoid circular dep via thin wrappers
-	_ = bookDir
-	_ = cfg
-	return fmt.Sprintf("Export %s — run 'nqb export --format %s' from CLI for full export", strings.ToUpper(format), format), nil
-}
-
-func buildStatusText(bookDir string, cfg *config.BookConfig) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📚 %s\n", cfg.Title))
-	for _, ch := range cfg.Chapters {
-		icon := "○"
-		chapPath := filepath.Join(bookDir, "chapters", ch.File)
-		if _, err := os.Stat(chapPath); err == nil {
-			icon = "●"
-		}
-		sb.WriteString(fmt.Sprintf("  %s Ch%02d: %s\n", icon, ch.Number, ch.Title))
-	}
-	return sb.String()
-}
-
-func buildHelp() string {
-	// Returns a plain-text summary used when /help is run from the palette.
-	var sb strings.Builder
-	sb.WriteString("Palette commands:\n")
-	for _, sec := range BookViewHelpSections {
-		if sec.Title == "Palette commands" {
-			for _, b := range sec.Bindings {
-				sb.WriteString(fmt.Sprintf("  %-30s  %s\n", b.Key, b.Desc))
-			}
-		}
-	}
-	sb.WriteString("\nPress [?] for full keybinding reference.\n")
-	return sb.String()
-}
 
 // ── View ──────────────────────────────────────────────────────────────────────
 
@@ -498,7 +369,7 @@ func (m *BookViewModel) renderMain() string {
 }
 
 // RunBookView launches the book TUI for a given project.
-func RunBookView(bookDir string, cfg *config.BookConfig, client *llm.Client) error {
+func RunBookView(bookDir string, cfg *config.BookConfig, client llm.Provider) error {
 	m := NewBookView(bookDir, cfg, client)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()

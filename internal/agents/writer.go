@@ -13,7 +13,7 @@ import (
 
 // WriteChapter reads the context file, calls the LLM, and writes the chapter file.
 // onDelta is called with each streamed text chunk (can be nil).
-func WriteChapter(ctx context.Context, client *llm.Client, bookDir string, cfg *config.BookConfig, chapterNum int, onDelta llm.StreamFunc) (string, error) {
+func WriteChapter(ctx context.Context, client llm.Provider, bookDir string, cfg *config.BookConfig, chapterNum int, onDelta llm.StreamFunc) (string, error) {
 	log.Info("write chapter start", "chapter", chapterNum, "book", cfg.Title)
 
 	// Read system prompt

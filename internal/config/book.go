@@ -20,10 +20,18 @@ type Chapter struct {
 
 // LLMSettings holds per-book LLM preferences.
 type LLMSettings struct {
+	// Model overrides per stage (model string, e.g. "claude-sonnet-4-6").
 	WriteModel string `yaml:"write_model,omitempty"`
 	QAModel    string `yaml:"qa_model,omitempty"`
 	ChatModel  string `yaml:"chat_model,omitempty"`
 	InitModel  string `yaml:"init_model,omitempty"`
+
+	// Provider overrides per stage (named key from GlobalConfig.Providers).
+	// When set, this provider is used instead of the global default.
+	WriteProvider string `yaml:"write_provider,omitempty"`
+	QAProvider    string `yaml:"qa_provider,omitempty"`
+	ChatProvider  string `yaml:"chat_provider,omitempty"`
+	InitProvider  string `yaml:"init_provider,omitempty"`
 }
 
 // BookConfig is the book.yaml manifest.
@@ -102,6 +110,9 @@ func InitBookDir(dir string, cfg *BookConfig) error {
 		filepath.Join(dir, "assets", "themes"),
 		filepath.Join(dir, "output"),
 		filepath.Join(dir, "config", "prompts"),
+		filepath.Join(dir, ".naqb", "notes"),
+		filepath.Join(dir, ".naqb", "todos"),
+		filepath.Join(dir, ".naqb", "drafts"),
 	}
 	for _, d := range dirs {
 		if err := os.MkdirAll(d, 0o750); err != nil {
@@ -125,7 +136,7 @@ func InitBookDir(dir string, cfg *BookConfig) error {
 	}
 
 	// Write .gitignore
-	gitignore := "output/\ncontexts/\n*.log\n"
+	gitignore := "output/\ncontexts/\n*.log\n.naqb/drafts/\n"
 	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(gitignore), 0o644); err != nil {
 		return err
 	}

@@ -8,8 +8,17 @@ import (
 	"github.com/amr/naqb/internal/config"
 )
 
+// WebExporter exports chapters to a static HTML site.
+// Full MkDocs Material integration is Phase 2; this produces a simple index.html.
+type WebExporter struct{}
+
+func (WebExporter) Format() string { return "web" }
+
+func (e WebExporter) Export(bookDir string, cfg *config.BookConfig) (string, error) {
+	return ExportWeb(bookDir, cfg)
+}
+
 // ExportWeb creates a simple static HTML site from chapter markdown files.
-// Full MkDocs integration is Phase 2; this creates a basic index.html.
 func ExportWeb(bookDir string, cfg *config.BookConfig) (string, error) {
 	combined, err := CombineChapters(bookDir, cfg)
 	if err != nil {

@@ -25,7 +25,7 @@ type QAResult struct {
 }
 
 // RunQA performs deterministic + LLM audit on a chapter.
-func RunQA(ctx context.Context, client *llm.Client, bookDir string, cfg *config.BookConfig, chapterNum int) (*QAResult, error) {
+func RunQA(ctx context.Context, client llm.Provider, bookDir string, cfg *config.BookConfig, chapterNum int) (*QAResult, error) {
 	log.Info("QA start", "chapter", chapterNum)
 	result := &QAResult{ChapterNum: chapterNum}
 
@@ -221,7 +221,7 @@ func checkCalloutSyntax(content string) string {
 	return ""
 }
 
-func runLLMAudit(ctx context.Context, client *llm.Client, bookDir string, cfg *config.BookConfig, chapterNum int, content string) (string, error) {
+func runLLMAudit(ctx context.Context, client llm.Provider, bookDir string, cfg *config.BookConfig, chapterNum int, content string) (string, error) {
 	systemPrompt, err := readPrompt(bookDir, "qa.md")
 	if err != nil {
 		systemPrompt = "You are a professional book editor. Review this chapter and provide feedback."
