@@ -1,0 +1,98 @@
+package commands
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/internal/log"
+)
+
+// ConfigCmd returns the `book config` command.
+func ConfigCmd() *cobra.Command {
+	var setKey bool
+
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Show or edit global book configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.LoadGlobal()
+			if err != nil {
+				return err
+			}
+
+			if setKey {
+				return setAPIKey(cfg)
+			}
+
+			// Default: show config path and current settings
+			fmt.Printf("Config file:  %s\n", config.GlobalConfigPath())
+			fmt.Printf("Log file:     %s  (set NQB_DEBUG=1 for verbose logs)\n\n", log.LogPath())
+			if cfg.APIKey != "" {
+				masked := maskKey(cfg.APIKey)
+				fmt.Printf("api_key: %s\n", masked)
+			} else {
+				fmt.Printf("api_key: (not set — set with: book config --set-key)\n")
+			}
+			if cfg.DefaultModel != "" {
+				fmt.Printf("default_model: %s\n", cfg.DefaultModel)
+			}
+			if cfg.Editor != "" {
+				fmt.Printf("editor: %s\n", cfg.Editor)
+			}
+
+			// Also try to open in editor if EDITOR is set
+			editor := os.Getenv("EDITOR")
+			if editor != "" && len(args) > 0 && args[0] == "edit" {
+				return openInEditor(editor, config.GlobalConfigPath())
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&setKey, "set-key", false, "Interactively set the Anthropic API key")
+	return cmd
+}
+
+func setAPIKey(cfg *config.GlobalConfig) error {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Printf("Enter your Anthropic API key (starts with 'sk-ant-'): ")
+	key, err := reader.ReadString('\n')
+	if err != nil {
+		return err
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return fmt.Errorf("API key cannot be empty")
+	}
+	if !strings.HasPrefix(key, "sk-ant-") {
+		fmt.Printf("Warning: key doesn't start with 'sk-ant-' — saving anyway\n")
+	}
+	cfg.APIKey = key
+	if err := config.SaveGlobal(cfg); err != nil {
+		return err
+	}
+	fmt.Printf("✓ API key saved to %s\n", config.GlobalConfigPath())
+	return nil
+}
+
+func maskKey(key string) string {
+	if len(key) <= 12 {
+		return "****"
+	}
+	return key[:8] + "..." + key[len(key)-4:]
+}
+
+func openInEditor(editor, path string) error {
+	cmd := exec.Command(editor, path)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}

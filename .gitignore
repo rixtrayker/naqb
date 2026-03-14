@@ -1,0 +1,29 @@
+# Build output
+bin/
+dist/
+
+# Test coverage
+coverage.out
+coverage.html
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Go
+*.test
+*.prof
+
+# nqb book project outputs (per-project, not repo-wide)
+# These are gitignored inside each book project by nqb init,
+# but listed here as a safety net if nqb itself is in a book dir.
+output/
+contexts/
