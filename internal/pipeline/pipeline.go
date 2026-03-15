@@ -62,7 +62,7 @@ type WriteStage struct{}
 
 func (WriteStage) Name() string { return "write" }
 func (WriteStage) CommitMessage(n int) string {
-	return fmt.Sprintf("chapter(%02d): Chapter %d first draft", n, n)
+	return fmt.Sprintf("draft(%02d): Chapter %d first draft", n, n)
 }
 func (WriteStage) Run(ctx context.Context, in StageInput) (StageOutput, error) {
 	path, err := agents.WriteChapter(ctx, in.Client, in.BookDir, in.Cfg, in.ChapterNum, nil)
@@ -77,7 +77,7 @@ type QAStage struct{}
 
 func (QAStage) Name() string { return "qa" }
 func (QAStage) CommitMessage(n int) string {
-	return fmt.Sprintf("qa(%02d): Chapter %d QA complete", n, n)
+	return fmt.Sprintf("reviewed(%02d): Chapter %d QA complete", n, n)
 }
 func (QAStage) Run(ctx context.Context, in StageInput) (StageOutput, error) {
 	result, err := agents.RunQA(ctx, in.Client, in.BookDir, in.Cfg, in.ChapterNum)

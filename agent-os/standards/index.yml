@@ -1,0 +1,17 @@
+# Agent OS Standards Index
+
+agents:
+  llm-agents:
+    description: Go template prompts, graceful LLM output fallbacks, per-stage model routing, semantic output validation
+
+config:
+  config-hierarchy:
+    description: 3-tier config (global/book/rules), fail-safe defaults for optional config, provider override levels
+
+pipeline:
+  pipeline-stages:
+    description: Stage interface design, git commit prefix scheme (draft/reviewed/conflict/gap), conditional stage composition
+
+tui:
+  tui-patterns:
+    description: Command registry + alias checklist, centralized keybindings in keys.go, sidebar tab extension pattern
