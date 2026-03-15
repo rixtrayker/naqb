@@ -19,25 +19,29 @@ type CommandHandler func(ctx context.Context, args []string, bookDir string, cfg
 // commandRegistry maps command names (without slash) to their handlers.
 // Aliases map to the same handler.
 var commandRegistry = map[string]CommandHandler{
-	"write":   handleWrite,
-	"w":       handleWrite,
-	"qa":      handleQA,
-	"q":       handleQA,
-	"export":  handleExport,
-	"e":       handleExport,
-	"status":  handleStatus,
-	"s":       handleStatus,
-	"context": handleContext,
-	"preview": handlePreview,
-	"p":       handlePreview,
-	"help":    handleHelp,
-	"?":       handleHelp,
-	"watch":   handleWatch,
-	"W":       handleWatch,
-	"chat":    handleChat,
-	"~":       handleChat,
-	"outline": handleOutline,
-	"o":       handleOutline,
+	"write":    handleWrite,
+	"w":        handleWrite,
+	"qa":       handleQA,
+	"q":        handleQA,
+	"export":   handleExport,
+	"e":        handleExport,
+	"status":   handleStatus,
+	"s":        handleStatus,
+	"context":  handleContext,
+	"preview":  handlePreview,
+	"p":        handlePreview,
+	"help":     handleHelp,
+	"?":        handleHelp,
+	"watch":    handleWatch,
+	"W":        handleWatch,
+	"chat":     handleChat,
+	"~":        handleChat,
+	"outline":  handleOutline,
+	"o":        handleOutline,
+	"research": handleResearch,
+	"r":        handleResearch,
+	"index":    handleIndex,
+	"i":        handleIndex,
 }
 
 // dispatchCommand parses a slash command string and runs the matching handler.
@@ -163,6 +167,14 @@ func handleChat(_ context.Context, _ []string, _ string, _ *config.BookConfig, _
 
 func handleOutline(_ context.Context, _ []string, _ string, _ *config.BookConfig, _ llm.Provider, _ int) (string, error) {
 	return "(Opening outline editor — use 'nqb outline' from CLI)", nil
+}
+
+func handleResearch(_ context.Context, _ []string, _ string, _ *config.BookConfig, _ llm.Provider, chNum int) (string, error) {
+	return fmt.Sprintf("Research chapter %d — run 'nqb research --chapter %d' from CLI", chNum, chNum), nil
+}
+
+func handleIndex(_ context.Context, _ []string, _ string, _ *config.BookConfig, _ llm.Provider, _ int) (string, error) {
+	return "Index — run 'nqb index' from CLI to re-index all chapters and research notes into the vector store", nil
 }
 
 // ── View helpers (kept here to co-locate with handlers) ───────────────────────

@@ -210,6 +210,8 @@ func (m *BookViewModel) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.runCommand("/write")
 	case "q":
 		return m, m.runCommand("/qa")
+	case "r":
+		return m, m.runCommand("/research")
 	case "e":
 		return m, m.runCommand("/export --format pdf")
 	case "p":
