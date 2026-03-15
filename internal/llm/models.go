@@ -36,16 +36,69 @@ const (
 	SpeedSlow   SpeedTier = 3 // 8s+ typical
 )
 
+// PricingTier selects the pricing mode for a model call.
+// Different tiers have different latency and cost characteristics.
+type PricingTier int
+
+const (
+	// PricingStandard is the default: up to 200K context, standard rates.
+	PricingStandard PricingTier = iota
+	// PricingBatch gives 50% off for asynchronous (non-real-time) jobs via the Batches API.
+	PricingBatch
+	// PricingFast is 6× standard rates for latency-sensitive workloads.
+	PricingFast
+	// PricingLongContext applies when input > 200K tokens (premium rate for entire request).
+	PricingLongContext
+)
+
+// ActivePricingTier is the process-wide default. Override per-call if needed.
+// Defaults to PricingStandard; set to PricingBatch for bulk offline jobs.
+var ActivePricingTier = PricingStandard
+
+// ModelCosts holds all pricing tiers for one model.
+// All values are USD per million tokens (MTok).
+type ModelCosts struct {
+	// Standard tier (default, up to 200K context)
+	StandardIn  float64
+	StandardOut float64
+	// Batch tier (50% off, async via Batches API)
+	BatchIn  float64
+	BatchOut float64
+	// Fast tier (6× standard, latency-sensitive)
+	FastIn  float64
+	FastOut float64
+	// LongContext tier (input > 200K tokens; premium rate for entire request)
+	LongContextIn  float64
+	LongContextOut float64
+}
+
+// CostForTier returns the input and output costs (USD/MTok) for the given tier.
+// Falls back to Standard if the tier has no specific pricing defined (zeros).
+func (c ModelCosts) CostForTier(tier PricingTier) (in, out float64) {
+	switch tier {
+	case PricingBatch:
+		if c.BatchIn > 0 {
+			return c.BatchIn, c.BatchOut
+		}
+	case PricingFast:
+		if c.FastIn > 0 {
+			return c.FastIn, c.FastOut
+		}
+	case PricingLongContext:
+		if c.LongContextIn > 0 {
+			return c.LongContextIn, c.LongContextOut
+		}
+	}
+	return c.StandardIn, c.StandardOut
+}
+
 // ModelCapabilities holds static metadata about a known model.
-// Cost fields are in USD per million tokens.
-// Used by the `nqb models` command and cost tracking in Wave 4.
+// Used by the `nqb models` command and cost tracking.
 type ModelCapabilities struct {
 	// ID is the provider-qualified model string (e.g. "minimax/minimax-m2.5").
 	ID string
-	// InputCostPerMTok is cost in USD per million input tokens.
-	InputCostPerMTok float64
-	// OutputCostPerMTok is cost in USD per million output tokens.
-	OutputCostPerMTok float64
+	// Costs holds all pricing tiers for this model.
+	Costs ModelCosts
 	// ContextWindow is the maximum number of input tokens the model accepts.
 	ContextWindow int
 	// Speed is the model's relative latency tier.
@@ -55,40 +108,82 @@ type ModelCapabilities struct {
 	Reasoning bool
 }
 
+// InputCostPerMTok returns the input cost for the active pricing tier.
+// Kept for backward compatibility with budget.go and pipeline.go.
+func (m ModelCapabilities) InputCostPerMTok() float64 {
+	in, _ := m.Costs.CostForTier(ActivePricingTier)
+	return in
+}
+
+// OutputCostPerMTok returns the output cost for the active pricing tier.
+func (m ModelCapabilities) OutputCostPerMTok() float64 {
+	_, out := m.Costs.CostForTier(ActivePricingTier)
+	return out
+}
+
 // KnownModels is the registry of models nqb knows about.
-// Add entries when adding new providers; used by Wave 4 features.
+// Pricing source: https://www.anthropic.com/pricing (Anthropic), OpenRouter model pages (others).
+// Last verified: 2026-03-15.
 var KnownModels = map[string]ModelCapabilities{
 	"minimax/minimax-m2.5": {
-		ID:                "minimax/minimax-m2.5",
-		InputCostPerMTok:  0.20,
-		OutputCostPerMTok: 1.10,
-		ContextWindow:     1_000_000,
-		Speed:             SpeedFast,
-		Reasoning:         true,
+		ID: "minimax/minimax-m2.5",
+		Costs: ModelCosts{
+			StandardIn:  0.20,
+			StandardOut: 1.10,
+		},
+		ContextWindow: 1_000_000,
+		Speed:         SpeedFast,
+		Reasoning:     true,
 	},
+	// Claude Opus 4.6 — Anthropic direct API pricing:
+	//   Standard:    $5.00 in / $25.00 out  (up to 200K context)
+	//   LongContext: $10.00 in / $37.50 out (input > 200K, beta)
+	//   Batch:       $2.50 in / $12.50 out  (50% off, async Batches API)
+	//   Fast:        $30.00 in / $150.00 out (6× standard, latency-sensitive)
 	"anthropic/claude-opus-4-6": {
-		ID:                "anthropic/claude-opus-4-6",
-		InputCostPerMTok:  15.00,
-		OutputCostPerMTok: 75.00,
-		ContextWindow:     200_000,
-		Speed:             SpeedSlow,
-		Reasoning:         false,
+		ID: "anthropic/claude-opus-4-6",
+		Costs: ModelCosts{
+			StandardIn:     5.00,
+			StandardOut:    25.00,
+			LongContextIn:  10.00,
+			LongContextOut: 37.50,
+			BatchIn:        2.50,
+			BatchOut:       12.50,
+			FastIn:         30.00,
+			FastOut:        150.00,
+		},
+		ContextWindow: 200_000,
+		Speed:         SpeedSlow,
 	},
+	// Claude Sonnet 4.6 — Anthropic direct API pricing:
+	//   Standard:    $3.00 in / $15.00 out
+	//   LongContext: $6.00 in / $22.50 out  (input > 200K, beta)
+	//   Batch:       $1.50 in / $7.50 out
+	//   Fast:        $18.00 in / $90.00 out
 	"anthropic/claude-sonnet-4-6": {
-		ID:                "anthropic/claude-sonnet-4-6",
-		InputCostPerMTok:  3.00,
-		OutputCostPerMTok: 15.00,
-		ContextWindow:     200_000,
-		Speed:             SpeedMedium,
-		Reasoning:         false,
+		ID: "anthropic/claude-sonnet-4-6",
+		Costs: ModelCosts{
+			StandardIn:     3.00,
+			StandardOut:    15.00,
+			LongContextIn:  6.00,
+			LongContextOut: 22.50,
+			BatchIn:        1.50,
+			BatchOut:       7.50,
+			FastIn:         18.00,
+			FastOut:        90.00,
+		},
+		ContextWindow: 200_000,
+		Speed:         SpeedMedium,
 	},
 	"minimax.minimax-m2.1": {
-		ID:                "minimax.minimax-m2.1",
-		InputCostPerMTok:  0.20,
-		OutputCostPerMTok: 1.10,
-		ContextWindow:     1_000_000,
-		Speed:             SpeedFast,
-		Reasoning:         true,
+		ID: "minimax.minimax-m2.1",
+		Costs: ModelCosts{
+			StandardIn:  0.20,
+			StandardOut: 1.10,
+		},
+		ContextWindow: 1_000_000,
+		Speed:         SpeedFast,
+		Reasoning:     true,
 	},
 }
 

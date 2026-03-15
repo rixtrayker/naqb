@@ -273,8 +273,8 @@ func estimateCost(tokIn, tokOut int, cfg *config.BookConfig) float64 {
 	if !ok {
 		return 0
 	}
-	inCost := float64(tokIn) / 1_000_000 * caps.InputCostPerMTok
-	outCost := float64(tokOut) / 1_000_000 * caps.OutputCostPerMTok
+	inCost := float64(tokIn) / 1_000_000 * caps.InputCostPerMTok()
+	outCost := float64(tokOut) / 1_000_000 * caps.OutputCostPerMTok()
 	return inCost + outCost
 }
 

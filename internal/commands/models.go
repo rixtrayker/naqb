@@ -14,18 +14,33 @@ import (
 
 // ModelsCmd returns the `nqb models` command.
 func ModelsCmd() *cobra.Command {
-	return &cobra.Command{
+	var allTiers bool
+	cmd := &cobra.Command{
 		Use:   "models",
 		Short: "List available models, costs, and stage defaults",
-		RunE:  runModels,
+		Long: `List all known models with pricing, context window, and speed.
+
+Pricing tiers (Anthropic direct API):
+  standard      Default rate (up to 200K context)
+  long-context  Premium rate when input exceeds 200K tokens (beta)
+  batch         50% off for async jobs via Batches API
+  fast          6× standard rate for latency-sensitive workloads
+
+Use --all-tiers to see all four pricing tiers per model.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runModels(allTiers)
+		},
 	}
+	cmd.Flags().BoolVar(&allTiers, "all-tiers", false, "Show all pricing tiers (standard, batch, fast, long-context)")
+	return cmd
 }
 
-func runModels(_ *cobra.Command, _ []string) error {
-	// ── Known models table ────────────────────────────────────────────────────
-	fmt.Println("\nAvailable models")
-	fmt.Printf("  %-38s %-14s %10s  %11s  %9s  %s\n",
-		"MODEL", "PROVIDER", "INPUT $/M", "OUTPUT $/M", "CONTEXT", "SPEED")
+func runModels(allTiers bool) error {
+	speedLabel := map[llm.SpeedTier]string{
+		llm.SpeedFast:   "fast",
+		llm.SpeedMedium: "medium",
+		llm.SpeedSlow:   "slow",
+	}
 
 	// Sort by speed then name for stable output.
 	type row struct {
@@ -43,62 +58,82 @@ func runModels(_ *cobra.Command, _ []string) error {
 		return rows[i].id < rows[j].id
 	})
 
-	speedLabel := map[llm.SpeedTier]string{
-		llm.SpeedFast:   "fast",
-		llm.SpeedMedium: "medium",
-		llm.SpeedSlow:   "slow",
-	}
+	// ── Known models table ────────────────────────────────────────────────────
+	fmt.Println("\nAvailable models  (standard pricing)")
+	fmt.Printf("  %-38s %-14s %10s  %11s  %9s  %s\n",
+		"MODEL", "PROVIDER", "INPUT $/M", "OUTPUT $/M", "CONTEXT", "SPEED")
 
 	for _, r := range rows {
-		provider := "openrouter"
-		if len(r.id) > 0 && r.id[0] != '/' {
-			// IDs without a slash prefix are Bedrock model IDs
-			if r.caps.Speed == llm.SpeedFast && r.id != "minimax/minimax-m2.5" {
-				provider = "bedrock"
-			}
-		}
-		ctx := fmt.Sprintf("%dK tok", r.caps.ContextWindow/1000)
-		if r.caps.ContextWindow >= 1_000_000 {
-			ctx = fmt.Sprintf("%dM tok", r.caps.ContextWindow/1_000_000)
-		}
+		provider := providerLabel(r.id)
+		ctx := contextLabel(r.caps.ContextWindow)
 		reasoning := ""
 		if r.caps.Reasoning {
 			reasoning = " *"
 		}
+		stdIn, stdOut := r.caps.Costs.CostForTier(llm.PricingStandard)
 		fmt.Printf("  %-38s %-14s %9.2f$  %10.2f$  %9s  %s%s\n",
-			r.id, provider,
-			r.caps.InputCostPerMTok, r.caps.OutputCostPerMTok,
-			ctx, speedLabel[r.caps.Speed], reasoning)
+			r.id, provider, stdIn, stdOut, ctx, speedLabel[r.caps.Speed], reasoning)
 	}
 	fmt.Println("\n  * model uses internal reasoning (chain-of-thought)")
 
+	// ── Multi-tier breakdown ──────────────────────────────────────────────────
+	if allTiers {
+		fmt.Println("\nPricing tiers (Anthropic models)")
+		tierNames := []struct {
+			tier  llm.PricingTier
+			label string
+			note  string
+		}{
+			{llm.PricingStandard, "standard", "up to 200K context"},
+			{llm.PricingBatch, "batch", "50% off, async Batches API"},
+			{llm.PricingFast, "fast", "6× standard, latency-sensitive"},
+			{llm.PricingLongContext, "long-context", "input > 200K tokens (beta)"},
+		}
+
+		for _, r := range rows {
+			// Only show multi-tier breakdown for models that have non-standard pricing.
+			c := r.caps.Costs
+			if c.BatchIn == 0 && c.FastIn == 0 && c.LongContextIn == 0 {
+				continue
+			}
+			fmt.Printf("\n  %s\n", r.id)
+			fmt.Printf("    %-16s  %10s  %11s  %s\n", "TIER", "INPUT $/M", "OUTPUT $/M", "NOTES")
+			for _, t := range tierNames {
+				in, out := c.CostForTier(t.tier)
+				fmt.Printf("    %-16s  %9.2f$  %10.2f$  %s\n", t.label, in, out, t.note)
+			}
+		}
+	} else {
+		// Hint that more exists.
+		hasTiers := false
+		for _, r := range rows {
+			if r.caps.Costs.BatchIn > 0 {
+				hasTiers = true
+				break
+			}
+		}
+		if hasTiers {
+			fmt.Println("  (use --all-tiers to see batch / fast / long-context pricing)")
+		}
+	}
+
 	// ── Stage defaults ────────────────────────────────────────────────────────
 	fmt.Println("\nStage defaults")
-
-	stages := []agents.Stage{
-		agents.StageInit, agents.StageQA, agents.StageGap,
-		agents.StageConflict, agents.StageResearch,
-		agents.StageWrite, agents.StageFix,
-		agents.StageChat,
+	stageGroups := []struct {
+		label  string
+		stages []agents.Stage
+	}{
+		{"init, qa, gap, conflict, research", []agents.Stage{agents.StageInit, agents.StageQA, agents.StageGap, agents.StageConflict, agents.StageResearch}},
+		{"write, fix", []agents.Stage{agents.StageWrite, agents.StageFix}},
+		{"chat", []agents.Stage{agents.StageChat}},
 	}
-
-	stageGroups := map[string][]agents.Stage{
-		"init, qa, gap, conflict, research": {agents.StageInit, agents.StageQA, agents.StageGap, agents.StageConflict, agents.StageResearch},
-		"write, fix":                        {agents.StageWrite, agents.StageFix},
-		"chat":                              {agents.StageChat},
-	}
-	groupOrder := []string{"init, qa, gap, conflict, research", "write, fix", "chat"}
-
-	_ = stages // used for reference above
-	for _, label := range groupOrder {
-		grp := stageGroups[label]
-		model := agents.ModelFor(grp[0], nil)
-		caps, hasCaps := llm.KnownModels[model]
+	for _, g := range stageGroups {
+		model := agents.ModelFor(g.stages[0], nil)
 		tier := ""
-		if hasCaps {
+		if caps, ok := llm.KnownModels[model]; ok {
 			tier = fmt.Sprintf("(%s)", speedLabel[caps.Speed])
 		}
-		fmt.Printf("  %-42s → %-38s %s\n", label, model, tier)
+		fmt.Printf("  %-42s → %-38s %s\n", g.label, model, tier)
 	}
 
 	// ── Book overrides ────────────────────────────────────────────────────────
@@ -121,6 +156,26 @@ func runModels(_ *cobra.Command, _ []string) error {
 
 	fmt.Fprintln(os.Stdout)
 	return nil
+}
+
+func providerLabel(modelID string) string {
+	// Dot-notation IDs are Bedrock (e.g. "minimax.minimax-m2.1")
+	for _, ch := range modelID {
+		if ch == '/' {
+			return "openrouter"
+		}
+		if ch == '.' {
+			return "bedrock"
+		}
+	}
+	return "openrouter"
+}
+
+func contextLabel(n int) string {
+	if n >= 1_000_000 {
+		return fmt.Sprintf("%dM tok", n/1_000_000)
+	}
+	return fmt.Sprintf("%dK tok", n/1000)
 }
 
 func printIfSet(label, model string) {

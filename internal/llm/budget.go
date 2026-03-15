@@ -42,8 +42,8 @@ func (b *BudgetTracker) Record(inputTok, outputTok int, modelID string) {
 	if !ok || (inputTok == 0 && outputTok == 0) {
 		return
 	}
-	costUSD := float64(inputTok)/1_000_000*caps.InputCostPerMTok +
-		float64(outputTok)/1_000_000*caps.OutputCostPerMTok
+	costUSD := float64(inputTok)/1_000_000*caps.InputCostPerMTok() +
+		float64(outputTok)/1_000_000*caps.OutputCostPerMTok()
 	micro := int64(costUSD * 1_000_000)
 	spent := b.spentMicro.Add(micro)
 
