@@ -38,7 +38,7 @@ func NewBedrock(accessKeyID, secretAccessKey, region string) *BedrockProvider {
 // Complete sends a non-streaming Converse request to Bedrock.
 func (p *BedrockProvider) Complete(ctx context.Context, model, system string, messages []Message, maxTokens int) (string, error) {
 	if maxTokens <= 0 {
-		maxTokens = 8192
+		maxTokens = DefaultMaxTokens
 	}
 	log.Debug("LLM complete", "provider", "bedrock", "model", model, "max_tokens", maxTokens)
 
@@ -59,7 +59,7 @@ func (p *BedrockProvider) Complete(ctx context.Context, model, system string, me
 // Stream sends a streaming ConverseStream request to Bedrock.
 func (p *BedrockProvider) Stream(ctx context.Context, model, system string, messages []Message, maxTokens int, onDelta StreamFunc) (string, error) {
 	if maxTokens <= 0 {
-		maxTokens = 8192
+		maxTokens = DefaultMaxTokens
 	}
 	log.Debug("LLM stream start", "provider", "bedrock", "model", model)
 

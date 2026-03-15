@@ -189,7 +189,7 @@ func importAsDraft(src, bookDir string, cfg *config.BookConfig, chapterNum int) 
 	// Update chapter status in book.yaml
 	for i, ch := range cfg.Chapters {
 		if ch.Number == chapterNum {
-			cfg.Chapters[i].Status = "imported"
+			cfg.Chapters[i].Status = config.StatusImported
 			break
 		}
 	}

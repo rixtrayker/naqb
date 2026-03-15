@@ -19,8 +19,10 @@ func GitCommit(bookDir, message string) error {
 		return nil
 	}
 
-	// Stage all changes
-	addCmd := exec.Command("git", "-C", bookDir, "add", "-A")
+	// Stage only source-controlled book paths — never secret/env files.
+	targetPaths := []string{"chapters/", "contexts/", "pipeline-report.md", "book.yaml", "outline.md"}
+	addArgs := append([]string{"-C", bookDir, "add", "--"}, targetPaths...)
+	addCmd := exec.Command("git", addArgs...)
 	addCmd.Stdout = os.Stdout
 	addCmd.Stderr = os.Stderr
 	if err := addCmd.Run(); err != nil {

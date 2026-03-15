@@ -13,7 +13,9 @@ import (
 
 // AnthropicProvider implements Provider using the Anthropic SDK.
 type AnthropicProvider struct {
-	inner *anthropic.Client
+	inner    *anthropic.Client
+	lastIn   int
+	lastOut  int
 }
 
 // NewAnthropic creates an AnthropicProvider with the provided API key.
@@ -25,7 +27,7 @@ func NewAnthropic(apiKey string) *AnthropicProvider {
 // Complete sends a single non-streaming request and returns the full response.
 func (p *AnthropicProvider) Complete(ctx context.Context, model, system string, messages []Message, maxTokens int) (string, error) {
 	if maxTokens <= 0 {
-		maxTokens = 8192
+		maxTokens = DefaultMaxTokens
 	}
 
 	log.Debug("LLM complete", "provider", "anthropic", "model", model, "max_tokens", maxTokens, "messages", len(messages))
@@ -50,15 +52,22 @@ func (p *AnthropicProvider) Complete(ctx context.Context, model, system string, 
 		log.Error("LLM complete returned empty content", "model", model)
 		return "", fmt.Errorf("empty response from API")
 	}
-	log.Debug("LLM complete done", "model", model, "stop_reason", resp.StopReason, "output_tokens", resp.Usage.OutputTokens)
+	p.lastIn = int(resp.Usage.InputTokens)
+	p.lastOut = int(resp.Usage.OutputTokens)
+	log.Debug("LLM complete done", "model", model, "stop_reason", resp.StopReason, "input_tokens", p.lastIn, "output_tokens", p.lastOut)
 	return resp.Content[0].Text, nil
+}
+
+// LastTokens implements TokenReporter — returns usage from the last Complete call.
+func (p *AnthropicProvider) LastTokens() (int, int) {
+	return p.lastIn, p.lastOut
 }
 
 // Stream sends a request with streaming, calling onDelta for each text chunk.
 // Returns the full assembled response.
 func (p *AnthropicProvider) Stream(ctx context.Context, model, system string, messages []Message, maxTokens int, onDelta StreamFunc) (string, error) {
 	if maxTokens <= 0 {
-		maxTokens = 8192
+		maxTokens = DefaultMaxTokens
 	}
 
 	log.Debug("LLM stream start", "provider", "anthropic", "model", model, "max_tokens", maxTokens, "messages", len(messages))

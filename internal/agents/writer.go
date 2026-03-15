@@ -37,16 +37,13 @@ func WriteChapter(ctx context.Context, client llm.Provider, bookDir string, cfg 
 	}
 	log.Debug("context loaded", "chapter", chapterNum, "bytes", len(contextData))
 
-	model := cfg.LLM.WriteModel
-	if model == "" {
-		model = llm.ModelSonnet
-	}
+	model := ModelFor(StageWrite, cfg)
 
 	messages := []llm.Message{
 		{Role: "user", Content: string(contextData)},
 	}
 
-	content, err := client.Stream(ctx, model, systemPrompt, messages, 8192, onDelta)
+	content, err := client.Stream(ctx, model, systemPrompt, messages, llm.DefaultMaxTokens, onDelta)
 	if err != nil {
 		log.Error("write chapter LLM failed", "chapter", chapterNum, "err", err)
 		return "", fmt.Errorf("writer LLM call failed: %w", err)

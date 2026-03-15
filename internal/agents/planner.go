@@ -10,6 +10,7 @@ import (
 	"github.com/amr/naqb/internal/config"
 	"github.com/amr/naqb/internal/llm"
 	"github.com/amr/naqb/internal/log"
+	"gopkg.in/yaml.v3"
 )
 
 // PlannerResult holds the output from the init interview.
@@ -65,9 +66,9 @@ Generate a complete chapter structure with titles and summaries, then a detailed
 		answers.Title, answers.Author, answers.Language,
 		answers.Domain, answers.Synopsis, answers.NumChapters)
 
-	response, err := client.Complete(ctx, llm.ModelHaiku, systemPrompt, []llm.Message{
+	response, err := client.Complete(ctx, ModelFor(StageInit, nil), systemPrompt, []llm.Message{
 		{Role: "user", Content: userMsg},
-	}, 4096)
+	}, llm.TokensPlan)
 	if err != nil {
 		log.Error("planner LLM failed", "err", err)
 		return nil, fmt.Errorf("planner LLM call failed: %w", err)
@@ -100,7 +101,7 @@ Generate a complete chapter structure with titles and summaries, then a detailed
 			chapters[i].File = config.ChapterFilename(chapters[i].Number)
 		}
 		if chapters[i].Status == "" {
-			chapters[i].Status = "pending"
+			chapters[i].Status = config.StatusPending
 		}
 	}
 
@@ -110,15 +111,16 @@ Generate a complete chapter structure with titles and summaries, then a detailed
 		Language:    answers.Language,
 		Domain:      answers.Domain,
 		Synopsis:    answers.Synopsis,
-		TargetWords: 3000,
+		TargetWords: llm.DefaultTargetWordsPerChapter,
 		Chapters:    chapters,
 		CreatedAt:   time.Now(),
 		Version:     "0.1.0",
 		LLM: config.LLMSettings{
-			WriteModel: llm.ModelSonnet,
-			QAModel:    llm.ModelSonnet,
-			ChatModel:  llm.ModelOpus,
-			InitModel:  llm.ModelHaiku,
+			WriteModel: ModelFor(StageWrite, nil),
+			QAModel:    ModelFor(StageQA, nil),
+			ChatModel:  ModelFor(StageChat, nil),
+			InitModel:  ModelFor(StageInit, nil),
+			FixModel:   ModelFor(StageFix, nil),
 		},
 	}
 
@@ -128,46 +130,38 @@ Generate a complete chapter structure with titles and summaries, then a detailed
 	}, nil
 }
 
-// parseChaptersFromYAMLBlock parses a simple YAML list of chapters.
-// We use a line-by-line parser to avoid circular imports.
+// parseChaptersFromYAMLBlock parses a YAML list of chapters using yaml.v3.
+// Falls back gracefully (returns nil) if the block is not valid YAML — the
+// caller will use buildFallbackChapters instead.
 func parseChaptersFromYAMLBlock(yamlStr string) []config.Chapter {
-	var chapters []config.Chapter
-	var current *config.Chapter
-
-	flush := func() {
-		if current != nil && current.Title != "" {
-			if current.Number == 0 {
-				current.Number = len(chapters) + 1
-			}
-			chapters = append(chapters, *current)
-			current = nil
-		}
+	trimmed := strings.TrimSpace(yamlStr)
+	// LLMs sometimes wrap the list in a "chapters:" key — strip it.
+	if strings.HasPrefix(trimmed, "chapters:") {
+		trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "chapters:"))
 	}
 
-	for _, rawLine := range strings.Split(yamlStr, "\n") {
-		line := strings.TrimSpace(rawLine)
-		if strings.HasPrefix(line, "- number:") {
-			flush()
-			current = &config.Chapter{}
-			numStr := strings.TrimSpace(strings.TrimPrefix(line, "- number:"))
-			fmt.Sscanf(numStr, "%d", &current.Number)
-		} else if current != nil {
-			if strings.HasPrefix(line, "title:") {
-				current.Title = cleanYAMLString(strings.TrimPrefix(line, "title:"))
-			} else if strings.HasPrefix(line, "summary:") {
-				current.Summary = cleanYAMLString(strings.TrimPrefix(line, "summary:"))
-			}
-		}
+	type yamlChapter struct {
+		Number  int    `yaml:"number"`
+		Title   string `yaml:"title"`
+		Summary string `yaml:"summary"`
 	}
-	flush()
+	var raw []yamlChapter
+	if err := yaml.Unmarshal([]byte(trimmed), &raw); err != nil {
+		return nil
+	}
 
-	return chapters
-}
-
-func cleanYAMLString(s string) string {
-	s = strings.TrimSpace(s)
-	s = strings.Trim(s, `"'`)
-	return s
+	out := make([]config.Chapter, 0, len(raw))
+	for _, r := range raw {
+		if r.Title == "" {
+			continue
+		}
+		out = append(out, config.Chapter{
+			Number:  r.Number,
+			Title:   r.Title,
+			Summary: r.Summary,
+		})
+	}
+	return out
 }
 
 func buildFallbackChapters(n int) []config.Chapter {

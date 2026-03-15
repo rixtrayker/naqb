@@ -216,10 +216,7 @@ func runLLMAudit(ctx context.Context, client llm.Provider, bookDir string, cfg *
 		systemPrompt = "You are a professional book editor. Review this chapter and provide feedback."
 	}
 
-	model := cfg.LLM.QAModel
-	if model == "" {
-		model = llm.ModelSonnet
-	}
+	model := ModelFor(StageQA, cfg)
 
 	// Build context for QA
 	finishedSummaries := buildFinishedSummaries(cfg, chapterNum)
@@ -254,13 +251,13 @@ func runLLMAudit(ctx context.Context, client llm.Provider, bookDir string, cfg *
 		content)
 
 	// Truncate if too long
-	if len(userMsg) > 60000 {
-		userMsg = userMsg[:60000] + "\n... (content truncated for review)"
+	if len(userMsg) > llm.MaxInputQA {
+		userMsg = userMsg[:llm.MaxInputQA] + "\n... (content truncated for review)"
 	}
 
 	report, err := client.Complete(ctx, model, systemPrompt, []llm.Message{
 		{Role: "user", Content: userMsg},
-	}, 2048)
+	}, llm.TokensQA)
 	if err != nil {
 		return "", err
 	}

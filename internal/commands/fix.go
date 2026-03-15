@@ -9,19 +9,19 @@ import (
 
 	"github.com/amr/naqb/internal/agents"
 	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/llm"
 	"github.com/amr/naqb/internal/tui"
 )
 
 // FixCmd returns the `nqb fix` command.
 func FixCmd() *cobra.Command {
 	var (
-		chapterNum int
-		modeQA     bool
-		modeGap    bool
-		modeStyle  bool
+		chapterNum  int
+		modeQA      bool
+		modeGap     bool
+		modeStyle   bool
 		modeRefresh bool
-		provider   string
+		smartMode   bool
+		provider    string
 	)
 
 	cmd := &cobra.Command{
@@ -55,12 +55,10 @@ Examples:
 				return err
 			}
 
-			apiKey, err := config.APIKey()
-			if err != nil || apiKey == "" {
-				return fmt.Errorf("ANTHROPIC_API_KEY not found — set it in your environment or Keychain")
+				client, err := providerFor(provider, cfg.LLM.FixProvider)
+			if err != nil {
+				return err
 			}
-
-			client := llm.New(apiKey)
 
 			// Determine mode — default to QA
 			mode := agents.FixModeQA
@@ -73,13 +71,24 @@ Examples:
 				mode = agents.FixModeStyle
 			}
 
-			_ = provider // reserved for future --provider flag
-
 			var result *agents.FixResult
 			label := fmt.Sprintf("fix chapter %d [%s]", chapterNum, mode)
 
 			err = tui.RunWithSpinner(label, func() error {
 				ctx := context.Background()
+
+				// --smart: classify issue complexity and route to appropriate model tier
+				if smartMode && mode != agents.FixModeRefresh {
+					issues := agents.ReadQAIssues(bookDir, chapterNum)
+					if len(issues) > 0 {
+						desc := fmt.Sprintf("Fix %d issue(s) in chapter %d: %s", len(issues), chapterNum, issues[0])
+						complexity := agents.ClassifyTask(ctx, client, desc)
+						smartModel := agents.ModelForComplexity(complexity)
+						fmt.Fprintf(os.Stdout, "  smart: complexity=%d → model=%s\n", complexity, smartModel)
+						cfg.LLM.FixModel = smartModel
+					}
+				}
+
 				var ferr error
 				result, ferr = agents.FixChapter(ctx, client, bookDir, cfg, chapterNum, mode)
 				return ferr
@@ -123,6 +132,7 @@ Examples:
 	cmd.Flags().BoolVar(&modeGap, "gap", false, "Fix mode: run gap analysis vs outline")
 	cmd.Flags().BoolVar(&modeStyle, "style", false, "Fix mode: style consistency with adjacent chapters")
 	cmd.Flags().BoolVar(&modeRefresh, "refresh", false, "Refresh mode: rebuild context + QA only, no rewrite")
+	cmd.Flags().BoolVar(&smartMode, "smart", false, "Smart mode: classify issue complexity and route to appropriate model tier")
 	cmd.Flags().StringVarP(&provider, "provider", "p", "anthropic", "LLM provider (reserved for future use)")
 
 	_ = cmd.MarkFlagRequired("chapter")

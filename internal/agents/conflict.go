@@ -51,7 +51,7 @@ func RunConflictCheck(ctx context.Context, client llm.Provider, bookDir string, 
 		return nil, fmt.Errorf("conflict check LLM failed: %w", err)
 	}
 
-	hasIssues := looksLikeConflict(findings)
+	hasIssues := parseVerdict(findings, looksLikeConflictHeuristic)
 	log.Info("conflict check done", "chapter", chapterNum, "hasIssues", hasIssues)
 
 	return &ConflictResult{
@@ -95,14 +95,7 @@ type precedingChapter struct {
 }
 
 func collectPrecedingChapters(bookDir string, cfg *config.BookConfig, currentNum int, level string) []precedingChapter {
-	// How many chars to include per chapter depends on depth level
-	maxCharsPerChapter := 3000
-	switch level {
-	case "moderate":
-		maxCharsPerChapter = 5000
-	case "max":
-		maxCharsPerChapter = 8000
-	}
+	maxCharsPerChapter := CharsForLevel(AnalysisLevel(level))
 
 	var result []precedingChapter
 	for _, ch := range cfg.Chapters {
@@ -128,12 +121,14 @@ func collectPrecedingChapters(bookDir string, cfg *config.BookConfig, currentNum
 }
 
 func runConflictLLM(ctx context.Context, client llm.Provider, cfg *config.BookConfig, chapterNum int, current string, preceding []precedingChapter, level string) (string, error) {
-	depth := depthInstruction(level)
+	lvl := AnalysisLevel(level)
+	depth := DepthInstruction(lvl, "conflict")
 
 	system := `You are a professional book editor specializing in consistency and continuity.
 Your job is to find contradictions, factual conflicts, and narrative inconsistencies between chapters.
 Be precise and concise. Quote the specific passages that conflict.
-If no conflicts are found, say so clearly.`
+If no conflicts are found, say so clearly.
+At the end of your response, output exactly one line: VERDICT: YES (conflicts found) or VERDICT: NO (no conflicts)`
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Book: %s | Domain: %s | Language: %s\n\n", cfg.Title, cfg.Domain, cfg.Language))
@@ -145,34 +140,18 @@ If no conflicts are found, say so clearly.`
 	sb.WriteString(fmt.Sprintf("---\n%s\n\nList any conflicts or contradictions between the current chapter and the preceding chapters.\n", depth))
 
 	userMsg := sb.String()
-	if len(userMsg) > 60000 {
-		userMsg = userMsg[:60000] + "\n… (truncated)"
+	if len(userMsg) > llm.MaxInputQA {
+		userMsg = userMsg[:llm.MaxInputQA] + "\n… (truncated)"
 	}
 
-	model := cfg.LLM.QAModel
-	if model == "" {
-		model = llm.ModelSonnet
-	}
+	model := ModelFor(StageConflict, cfg)
 
 	return client.Complete(ctx, model, system, []llm.Message{
 		{Role: "user", Content: userMsg},
-	}, 1024)
+	}, llm.TokensAnalysis)
 }
 
-func depthInstruction(level string) string {
-	switch level {
-	case "light":
-		return "Focus on obvious factual contradictions (names, dates, stated facts)."
-	case "moderate":
-		return "Check factual accuracy, argument consistency, and narrative continuity."
-	case "max":
-		return "Perform a deep review: facts, arguments, terminology consistency, narrative arc, and tone."
-	default:
-		return "Focus on obvious factual contradictions."
-	}
-}
-
-func looksLikeConflict(findings string) bool {
+func looksLikeConflictHeuristic(findings string) bool {
 	lower := strings.ToLower(findings)
 	negative := []string{"no conflict", "no contradiction", "no inconsistenc", "none found", "no issues"}
 	for _, n := range negative {

@@ -54,7 +54,7 @@ func RunGapAnalysis(ctx context.Context, client llm.Provider, bookDir string, cf
 		return nil, fmt.Errorf("gap analysis LLM failed: %w", err)
 	}
 
-	hasGaps := looksLikeGap(findings)
+	hasGaps := parseVerdict(findings, looksLikeGapHeuristic)
 	log.Info("gap analysis done", "chapter", chapterNum, "hasGaps", hasGaps)
 
 	return &GapResult{
@@ -92,7 +92,8 @@ func WriteGapReport(bookDir string, result *GapResult) error {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 func runGapLLM(ctx context.Context, client llm.Provider, cfg *config.BookConfig, chapterNum int, content, outline, level string) (string, error) {
-	depth := gapDepthInstruction(level)
+	lvl := AnalysisLevel(level)
+	depth := DepthInstruction(lvl, "gap")
 
 	system := `You are a professional book editor checking coverage and completeness.
 Your job is to compare a written chapter against its planned outline and identify topics that are:
@@ -100,17 +101,12 @@ Your job is to compare a written chapter against its planned outline and identif
 - Superficial (mentioned but not adequately explained)
 - Out of scope (covered but not in the outline)
 Be concise and actionable. Quote specific outline items that were missed.
-If all outline points are well-covered, say so clearly.`
+If all outline points are well-covered, say so clearly.
+At the end of your response, output exactly one line: VERDICT: YES (gaps exist) or VERDICT: NO (fully covered)`
 
 	// Truncate chapter if large
 	chapterExcerpt := content
-	maxChars := 8000
-	switch level {
-	case "light":
-		maxChars = 5000
-	case "max":
-		maxChars = 12000
-	}
+	maxChars := CharsForLevel(lvl)
 	if len(chapterExcerpt) > maxChars {
 		chapterExcerpt = chapterExcerpt[:maxChars] + "\n… (truncated)"
 	}
@@ -155,14 +151,11 @@ Identify gaps between the outline and the written chapter.`,
 		chapterExcerpt,
 		depth)
 
-	model := cfg.LLM.QAModel
-	if model == "" {
-		model = llm.ModelSonnet
-	}
+	model := ModelFor(StageGap, cfg)
 
 	return client.Complete(ctx, model, system, []llm.Message{
 		{Role: "user", Content: userMsg},
-	}, 1024)
+	}, llm.TokensAnalysis)
 }
 
 func outlineSummaryLine(summary string) string {
@@ -172,20 +165,8 @@ func outlineSummaryLine(summary string) string {
 	return fmt.Sprintf("**Summary/Goal:** %s\n", summary)
 }
 
-func gapDepthInstruction(level string) string {
-	switch level {
-	case "light":
-		return "Focus only on clearly missing major topics from the outline."
-	case "moderate":
-		return "Identify missing topics and superficially-covered sections."
-	case "max":
-		return "Provide a thorough coverage audit: missing topics, shallow coverage, out-of-scope content, and suggestions."
-	default:
-		return "Focus only on clearly missing major topics."
-	}
-}
-
-func looksLikeGap(findings string) bool {
+// looksLikeGapHeuristic is the fallback detection when the LLM omits the VERDICT line.
+func looksLikeGapHeuristic(findings string) bool {
 	lower := strings.ToLower(findings)
 	covered := []string{"well-covered", "fully covered", "no gaps", "all outline", "comprehensive", "no missing"}
 	for _, c := range covered {

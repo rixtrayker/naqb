@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/amr/naqb/internal/log"
 )
 
 // WordCountRules holds the word count limits from config/rules.yaml.
@@ -79,5 +81,25 @@ func LoadRules(bookDir string) (*Rules, error) {
 	if r.QA.GapLevel == "" {
 		r.QA.GapLevel = "light"
 	}
+	validateRules(r)
 	return r, nil
+}
+
+// validLevels are the accepted values for gap_level and conflict_level.
+var validLevels = map[string]bool{
+	"off": true, "light": true, "moderate": true, "max": true,
+}
+
+// validateRules corrects invalid enum values in-place and logs warnings.
+func validateRules(r *Rules) {
+	if r.QA.ConflictLevel != "" && !validLevels[r.QA.ConflictLevel] {
+		log.Warn("rules.yaml: invalid conflict_level, defaulting to light",
+			"value", r.QA.ConflictLevel)
+		r.QA.ConflictLevel = "light"
+	}
+	if r.QA.GapLevel != "" && !validLevels[r.QA.GapLevel] {
+		log.Warn("rules.yaml: invalid gap_level, defaulting to light",
+			"value", r.QA.GapLevel)
+		r.QA.GapLevel = "light"
+	}
 }

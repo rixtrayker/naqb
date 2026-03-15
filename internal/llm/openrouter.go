@@ -20,6 +20,8 @@ type OpenRouterProvider struct {
 	apiKey  string
 	baseURL string
 	http    *http.Client
+	lastIn  int
+	lastOut int
 }
 
 // NewOpenRouter creates a provider for OpenRouter.
@@ -59,8 +61,14 @@ type orChoice struct {
 	} `json:"delta"`
 }
 
+type orUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+}
+
 type orResponse struct {
 	Choices []orChoice `json:"choices"`
+	Usage   orUsage    `json:"usage"`
 	Error   *struct {
 		Message string `json:"message"`
 		Code    int    `json:"code"`
@@ -70,12 +78,12 @@ type orResponse struct {
 // Complete sends a non-streaming chat completion request.
 func (p *OpenRouterProvider) Complete(ctx context.Context, model, system string, messages []Message, maxTokens int) (string, error) {
 	if maxTokens <= 0 {
-		maxTokens = 8192
+		maxTokens = DefaultMaxTokens
 	}
 	// MiniMax reasoning models consume tokens on the reasoning trace before emitting content.
 	// Enforce a minimum so content is never truncated.
-	if maxTokens < 512 {
-		maxTokens = 512
+	if maxTokens < MinTokensMiniMax {
+		maxTokens = MinTokensMiniMax
 	}
 	log.Debug("LLM complete", "provider", "openrouter", "model", model, "max_tokens", maxTokens)
 
@@ -123,14 +131,21 @@ func (p *OpenRouterProvider) Complete(ctx context.Context, model, system string,
 		return "", fmt.Errorf("openrouter: model returned null content (try increasing max_tokens)")
 	}
 	result := *content
-	log.Debug("LLM complete done", "provider", "openrouter", "model", model, "chars", len(result))
+	p.lastIn = orResp.Usage.PromptTokens
+	p.lastOut = orResp.Usage.CompletionTokens
+	log.Debug("LLM complete done", "provider", "openrouter", "model", model, "chars", len(result), "input_tokens", p.lastIn, "output_tokens", p.lastOut)
 	return result, nil
+}
+
+// LastTokens implements TokenReporter — returns usage from the last Complete call.
+func (p *OpenRouterProvider) LastTokens() (int, int) {
+	return p.lastIn, p.lastOut
 }
 
 // Stream sends a streaming chat completion request, calling onDelta for each chunk.
 func (p *OpenRouterProvider) Stream(ctx context.Context, model, system string, messages []Message, maxTokens int, onDelta StreamFunc) (string, error) {
 	if maxTokens <= 0 {
-		maxTokens = 8192
+		maxTokens = DefaultMaxTokens
 	}
 	log.Debug("LLM stream start", "provider", "openrouter", "model", model)
 

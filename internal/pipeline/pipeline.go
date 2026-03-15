@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/amr/naqb/internal/agents"
 	"github.com/amr/naqb/internal/config"
@@ -27,6 +28,12 @@ type StageOutput struct {
 	Path string
 	// Message is a short human-readable summary of what was done.
 	Message string
+	// Token usage and timing — populated by Run() after each stage.
+	TokensIn      int
+	TokensOut     int
+	Duration      time.Duration
+	EstimatedCost float64 // USD
+	StageName     string
 }
 
 // Stage is the interface implemented by each pipeline step.
@@ -158,24 +165,90 @@ func DefaultStagesFor(rules *config.Rules) []Stage {
 
 // ── Runner ───────────────────────────────────────────────────────────────────
 
+// PipelineResult holds per-stage outputs for a completed pipeline run.
+type PipelineResult struct {
+	Stages []StageOutput
+}
+
+// TotalTokensIn returns the sum of input tokens across all stages.
+func (r *PipelineResult) TotalTokensIn() int {
+	var n int
+	for _, s := range r.Stages {
+		n += s.TokensIn
+	}
+	return n
+}
+
+// TotalTokensOut returns the sum of output tokens across all stages.
+func (r *PipelineResult) TotalTokensOut() int {
+	var n int
+	for _, s := range r.Stages {
+		n += s.TokensOut
+	}
+	return n
+}
+
+// TotalCost returns the sum of estimated costs across all stages.
+func (r *PipelineResult) TotalCost() float64 {
+	var c float64
+	for _, s := range r.Stages {
+		c += s.EstimatedCost
+	}
+	return c
+}
+
+// TotalDuration returns the sum of stage durations.
+func (r *PipelineResult) TotalDuration() time.Duration {
+	var d time.Duration
+	for _, s := range r.Stages {
+		d += s.Duration
+	}
+	return d
+}
+
 // Run executes a slice of stages in order for a chapter, committing after each.
-func Run(ctx context.Context, stages []Stage, in StageInput) error {
+func Run(ctx context.Context, stages []Stage, in StageInput) (*PipelineResult, error) {
 	total := len(stages)
 	log.Info("pipeline start", "chapter", in.ChapterNum, "book", in.Cfg.Title, "stages", total)
+
+	result := &PipelineResult{}
 
 	for i, stage := range stages {
 		fmt.Fprintf(in.Out, "  [%d/%d] %s (chapter %d)...\n", i+1, total, stage.Name(), in.ChapterNum)
 
+		start := time.Now()
 		out, err := stage.Run(ctx, in)
+		out.Duration = time.Since(start)
+		out.StageName = stage.Name()
+
+		// Capture token usage if the provider supports it.
+		if tr, ok := in.Client.(llm.TokenReporter); ok {
+			out.TokensIn, out.TokensOut = tr.LastTokens()
+			out.EstimatedCost = estimateCost(out.TokensIn, out.TokensOut, in.Cfg)
+			// Update session budget tracker so degradation kicks in for subsequent stages.
+			model := in.Cfg.LLM.WriteModel
+			if model == "" {
+				model = llm.ModelDefault
+			}
+			llm.SessionBudget.Record(out.TokensIn, out.TokensOut, model)
+		}
+
+		result.Stages = append(result.Stages, out)
+
 		if err != nil {
 			log.Error("pipeline stage failed", "stage", stage.Name(), "chapter", in.ChapterNum, "err", err)
-			return fmt.Errorf("%s stage failed: %w", stage.Name(), err)
+			return result, fmt.Errorf("%s stage failed: %w", stage.Name(), err)
 		}
 
 		if out.Message != "" {
 			fmt.Fprintf(in.Out, "        %s\n", out.Message)
 		}
-		log.Info("pipeline stage done", "stage", stage.Name(), "chapter", in.ChapterNum)
+		if out.TokensIn > 0 || out.TokensOut > 0 {
+			fmt.Fprintf(in.Out, "        %d in / %d out tok | $%.4f | %.1fs\n",
+				out.TokensIn, out.TokensOut, out.EstimatedCost, out.Duration.Seconds())
+		}
+		log.Info("pipeline stage done", "stage", stage.Name(), "chapter", in.ChapterNum,
+			"duration", out.Duration, "tokensIn", out.TokensIn, "tokensOut", out.TokensOut)
 
 		if msg := stage.CommitMessage(in.ChapterNum); msg != "" {
 			if err := GitCommit(in.BookDir, msg); err != nil {
@@ -186,12 +259,28 @@ func Run(ctx context.Context, stages []Stage, in StageInput) error {
 	}
 
 	log.Info("pipeline complete", "chapter", in.ChapterNum)
-	return nil
+	return result, nil
+}
+
+// estimateCost calculates USD cost from token counts using the configured model.
+func estimateCost(tokIn, tokOut int, cfg *config.BookConfig) float64 {
+	// Try to find model in registry; fall back to zero.
+	model := cfg.LLM.WriteModel
+	if model == "" {
+		model = llm.ModelDefault
+	}
+	caps, ok := llm.KnownModels[model]
+	if !ok {
+		return 0
+	}
+	inCost := float64(tokIn) / 1_000_000 * caps.InputCostPerMTok
+	outCost := float64(tokOut) / 1_000_000 * caps.OutputCostPerMTok
+	return inCost + outCost
 }
 
 // RunChapterPipeline runs the full stage set (context + write + qa + optional
 // conflict + gap) for a chapter. Rules are loaded from config/rules.yaml.
-func RunChapterPipeline(ctx context.Context, client llm.Provider, bookDir string, cfg *config.BookConfig, chapterNum int, out io.Writer) error {
+func RunChapterPipeline(ctx context.Context, client llm.Provider, bookDir string, cfg *config.BookConfig, chapterNum int, out io.Writer) (*PipelineResult, error) {
 	rules, _ := config.LoadRules(bookDir)
 	return Run(ctx, DefaultStagesFor(rules), StageInput{
 		BookDir:    bookDir,

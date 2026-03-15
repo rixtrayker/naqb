@@ -272,14 +272,11 @@ func runFixLLM(ctx context.Context, client llm.Provider, cfg *config.BookConfig,
 
 	systemPrompt := "You are an expert book editor and author. Follow the fix instructions precisely."
 
-	model := cfg.LLM.WriteModel
-	if model == "" {
-		model = llm.ModelSonnet
-	}
+	model := ModelFor(StageFix, cfg)
 
 	rewritten, err := client.Complete(ctx, model, systemPrompt, []llm.Message{
 		{Role: "user", Content: promptBuf.String()},
-	}, 8192)
+	}, llm.DefaultMaxTokens)
 	if err != nil {
 		return "", err
 	}
@@ -333,10 +330,7 @@ List each issue as a brief bullet point.
 ## Chapter Being Reviewed (Chapter %d)
 %s`, chapterNum, adjacentCtx, chapterNum, chapterContent)
 
-	model := cfg.LLM.QAModel
-	if model == "" {
-		model = llm.ModelHaiku
-	}
+	model := ModelFor(StageQA, cfg)
 
 	result, err := client.Complete(ctx, model, "You are a style editor. Be concise and specific.", []llm.Message{
 		{Role: "user", Content: userMsg},

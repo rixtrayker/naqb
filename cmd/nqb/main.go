@@ -47,6 +47,7 @@ func main() {
 		commands.SyncCmd(),
 		commands.ImportCmd(),
 		commands.FixCmd(),
+		commands.ModelsCmd(),
 		vault.Cmd(),
 		commands.CompletionCmd(rootCmd),
 	)

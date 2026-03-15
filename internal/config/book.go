@@ -9,13 +9,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ChapterStatus represents a chapter's lifecycle state.
+type ChapterStatus string
+
+const (
+	StatusPending  ChapterStatus = "pending"
+	StatusWritten  ChapterStatus = "written"
+	StatusReviewed ChapterStatus = "reviewed"
+	StatusImported ChapterStatus = "imported"
+)
+
 // Chapter represents a single chapter in the book's table of contents.
 type Chapter struct {
-	Number  int    `yaml:"number"`
-	Title   string `yaml:"title"`
-	File    string `yaml:"file"`
-	Summary string `yaml:"summary,omitempty"`
-	Status  string `yaml:"status,omitempty"` // pending, written, reviewed
+	Number  int           `yaml:"number"`
+	Title   string        `yaml:"title"`
+	File    string        `yaml:"file"`
+	Summary string        `yaml:"summary,omitempty"`
+	Status  ChapterStatus `yaml:"status,omitempty"`
 }
 
 // LLMSettings holds per-book LLM preferences.
@@ -25,13 +35,16 @@ type LLMSettings struct {
 	QAModel    string `yaml:"qa_model,omitempty"`
 	ChatModel  string `yaml:"chat_model,omitempty"`
 	InitModel  string `yaml:"init_model,omitempty"`
+	FixModel   string `yaml:"fix_model,omitempty"`
 
 	// Provider overrides per stage (named key from GlobalConfig.Providers).
 	// When set, this provider is used instead of the global default.
-	WriteProvider string `yaml:"write_provider,omitempty"`
-	QAProvider    string `yaml:"qa_provider,omitempty"`
-	ChatProvider  string `yaml:"chat_provider,omitempty"`
-	InitProvider  string `yaml:"init_provider,omitempty"`
+	WriteProvider    string `yaml:"write_provider,omitempty"`
+	QAProvider       string `yaml:"qa_provider,omitempty"`
+	ChatProvider     string `yaml:"chat_provider,omitempty"`
+	InitProvider     string `yaml:"init_provider,omitempty"`
+	FixProvider      string `yaml:"fix_provider,omitempty"`
+	FallbackProvider string `yaml:"fallback_provider,omitempty"` // optional failover for all stages
 }
 
 // SyncConfig holds external sync targets for the book.

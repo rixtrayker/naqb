@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/internal/llm"
 	"github.com/amr/naqb/internal/search"
 )
 
@@ -252,8 +253,8 @@ func formatResults(results []search.SearchResult) string {
 			name = filepath.Base(r.Path)
 		}
 		content := r.Content
-		if len(content) > 2000 {
-			content = content[:2000] + "\n... (truncated)"
+		if len(content) > llm.MaxResearchCharsPerNote {
+			content = content[:llm.MaxResearchCharsPerNote] + "\n... (truncated)"
 		}
 		parts = append(parts, fmt.Sprintf("### %s\n%s", name, content))
 	}
@@ -282,8 +283,8 @@ func readResearchNotes(researchDir string) string {
 		}
 		content := string(data)
 		// Truncate long files
-		if len(content) > 2000 {
-			content = content[:2000] + "\n... (truncated)"
+		if len(content) > llm.MaxResearchCharsPerNote {
+			content = content[:llm.MaxResearchCharsPerNote] + "\n... (truncated)"
 		}
 		notes = append(notes, fmt.Sprintf("### %s\n%s", name, content))
 	}

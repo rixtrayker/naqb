@@ -31,16 +31,32 @@ func providerFor(providerFlag, namedProvider string) (llm.Provider, error) {
 
 	log.Debug("provider resolved", "name", name, "type", pcfg.Type)
 
-	// Convert config.ProviderConfig → llm.ProviderConfig (identical fields, different packages).
-	p, err := llm.NewProvider(llm.ProviderConfig{
-		Type:            pcfg.Type,
-		APIKey:          pcfg.APIKey,
-		BaseURL:         pcfg.BaseURL,
-		SecretAccessKey: pcfg.SecretAccessKey,
-		Region:          pcfg.Region,
-	})
+	// llm.ProviderConfig is a type alias for config.ProviderConfig — no conversion needed.
+	p, err := llm.NewProvider(pcfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating provider %q: %w", name, err)
 	}
-	return p, nil
+	return llm.NewRetryProvider(p, name), nil
+}
+
+// providerWithFallback constructs a primary provider wrapped in retry, and if
+// fallbackName is non-empty, chains it as a FallbackProvider after the primary.
+func providerWithFallback(providerFlag, namedProvider, fallbackName string) (llm.Provider, error) {
+	primary, err := providerFor(providerFlag, namedProvider)
+	if err != nil {
+		return nil, err
+	}
+	if fallbackName == "" {
+		return primary, nil
+	}
+	fallback, err := providerFor("", fallbackName)
+	if err != nil {
+		log.Warn("provider: fallback provider unavailable, using primary only", "fallback", fallbackName, "err", err)
+		return primary, nil
+	}
+	log.Debug("provider: fallback chain active", "fallback", fallbackName)
+	return llm.NewFallbackProvider(
+		[]llm.Provider{primary, fallback},
+		[]string{namedProvider, fallbackName},
+	), nil
 }
