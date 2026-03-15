@@ -24,7 +24,7 @@ type HomeAction int
 
 const (
 	// HomeOpen indicates the user selected an existing project to open.
-	HomeOpen    HomeAction = iota
+	HomeOpen HomeAction = iota
 	// HomeNew indicates the user wants to create a new book.
 	HomeNew
 	// HomeVaults indicates the user wants to manage vaults.
@@ -36,21 +36,12 @@ const (
 // ── Styles ──────────────────────────────────────────────────────────────────
 
 var (
-	homeBrandStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("99")).
-			PaddingLeft(2)
-
-	homeSubtitleStyle = lipgloss.NewStyle().
-				Faint(true).
+	homeSearchLabelStyle = lipgloss.NewStyle().
+				Foreground(ColorSecondary).
 				PaddingLeft(2)
 
-	homeSearchLabel = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("212")).
-			PaddingLeft(2)
-
 	homeItemActive = lipgloss.NewStyle().
-			Background(lipgloss.Color("62")).
+			Background(ColorSecondary).
 			Foreground(lipgloss.Color("230")).
 			PaddingLeft(1).PaddingRight(1)
 
@@ -62,19 +53,12 @@ var (
 
 	homeSectionStyle = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(lipgloss.Color("241")).
+				Foreground(ColorDim).
 				PaddingLeft(2).
 				PaddingTop(1)
 
-	homeFooterStyle = lipgloss.NewStyle().
-			Faint(true).
-			PaddingLeft(2)
-
-	homeLangAr = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214"))
-
-	homeLangEn = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("86"))
+	homeDividerStyle = lipgloss.NewStyle().
+				Foreground(ColorBorder)
 )
 
 // ── Model ────────────────────────────────────────────────────────────────────
@@ -197,20 +181,33 @@ func (m *homeModel) applyFilter() {
 }
 
 func (m *homeModel) View() string {
-	if m.width == 0 {
+	w := m.width
+	if w == 0 {
 		return "Loading..."
 	}
 
 	var b strings.Builder
 
-	// Header
-	b.WriteString("\n")
-	b.WriteString(homeBrandStyle.Render("نقب  nqb") + "\n")
-	b.WriteString(homeSubtitleStyle.Render("probe your ideas. give them depth.") + "\n\n")
+	// ── Brand header ──────────────────────────────────────────────────────────
+	brand := BrandStyle.Render("  نقب  nqb")
+	version := VersionStyle.Render("  v0.1")
+	headerLeft := brand + version
+	tagline := SubtitleStyle.Render("excavate your ideas — give them depth")
 
-	// Search bar
-	b.WriteString(homeSearchLabel.Render("Search: ") + m.search.View() + "\n\n")
+	// Pad tagline to right-align in width
+	headerLine := lipgloss.NewStyle().Width(w).Render(headerLeft)
+	b.WriteString("\n" + headerLine + "\n")
+	b.WriteString(SubtitleStyle.PaddingLeft(2).Render(tagline) + "\n")
 
+	// Divider
+	b.WriteString(homeDividerStyle.Render(strings.Repeat("─", w)) + "\n")
+
+	// ── Search bar ────────────────────────────────────────────────────────────
+	searchLabel := homeSearchLabelStyle.Render("[/] ")
+	b.WriteString(searchLabel + m.search.View() + "\n")
+	b.WriteString(homeDividerStyle.Render(strings.Repeat("─", w)) + "\n\n")
+
+	// ── Project list ──────────────────────────────────────────────────────────
 	if m.loading {
 		b.WriteString(homeItemNormal.Render("  Loading projects...") + "\n")
 	} else if len(m.filtered) == 0 {
@@ -221,6 +218,7 @@ func (m *homeModel) View() string {
 		}
 	} else {
 		b.WriteString(homeSectionStyle.Render("Projects") + "\n")
+
 		// Show up to height-12 items
 		maxVisible := m.height - 14
 		if maxVisible < 3 {
@@ -237,7 +235,7 @@ func (m *homeModel) View() string {
 
 		for i := start; i < end; i++ {
 			p := m.filtered[i]
-			row := m.renderProject(p, i == m.cursor)
+			row := m.renderProject(p, i == m.cursor, w)
 			b.WriteString(row + "\n")
 		}
 
@@ -247,43 +245,53 @@ func (m *homeModel) View() string {
 		}
 	}
 
-	// Footer — keybinding hint bar
+	// ── Pinned status bar ─────────────────────────────────────────────────────
 	b.WriteString("\n")
-	b.WriteString(renderHintBar(HomeBindings) + "\n")
+	b.WriteString(renderStatusBar(HomeBindings, w) + "\n")
 	if m.search.Focused() {
-		b.WriteString(renderHintBar(HomeSearchHint) + "\n")
+		b.WriteString(renderStatusBar(HomeSearchHint, w) + "\n")
 	}
 
 	return b.String()
 }
 
-func (m *homeModel) renderProject(p vault.Project, active bool) string {
-	lang := p.Language
-	langStyle := homeLangEn
-	if lang == "ar" {
-		langStyle = homeLangAr
+// renderProject renders one project row, two-column card style.
+func (m *homeModel) renderProject(p vault.Project, active bool, totalW int) string {
+	// Language badge
+	var badge string
+	if p.Language == "ar" {
+		badge = BadgeAR.Render("AR")
+	} else {
+		badge = BadgeEN.Render("EN")
 	}
 
-	progress := ""
-	if p.Chapters > 0 {
-		progress = fmt.Sprintf("%d/%d ch", p.Written, p.Chapters)
+	// Title column (left, truncated)
+	titleW := totalW / 2
+	if titleW > 40 {
+		titleW = 40
 	}
-
-	age := humanTime(p.ModTime)
-
 	title := p.Title
-	if len(title) > 35 {
-		title = title[:32] + "..."
+	if len(title) > titleW-4 {
+		title = title[:titleW-7] + "..."
 	}
 
-	meta := homeMetaStyle.Render(
-		fmt.Sprintf("%-8s  %-10s  %s", langStyle.Render(lang), progress, age),
+	// Meta column (right, faint)
+	age := humanTime(p.ModTime)
+	domain := p.Domain
+	if len(domain) > 16 {
+		domain = domain[:13] + "..."
+	}
+	meta := homeMetaStyle.Render(fmt.Sprintf("%-16s  %s", domain, age))
+
+	// Compose
+	leftCol := fmt.Sprintf("%s %s", badge, title)
+	line := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Width(titleW+4).Render(leftCol),
+		meta,
 	)
 
-	line := fmt.Sprintf("%-36s  %s", title, meta)
-
 	if active {
-		return homeItemActive.Render(line)
+		return homeItemActive.Width(totalW - 2).Render(line)
 	}
 	return homeItemNormal.Render(line)
 }

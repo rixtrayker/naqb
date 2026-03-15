@@ -14,10 +14,30 @@ type WordCountRules struct {
 	Target int `yaml:"target"`
 }
 
+// ResearchRules controls the automated research pipeline.
+type ResearchRules struct {
+	// SearchProvider selects which API to use: "tavily", "exa", or "none" (default).
+	SearchProvider string `yaml:"search_provider,omitempty"`
+	// MaxQueriesPerChapter caps the number of Scout-generated queries per chapter.
+	MaxQueriesPerChapter int `yaml:"max_queries_per_chapter,omitempty"`
+	// MaxResultsPerQuery caps results fetched per query.
+	MaxResultsPerQuery int `yaml:"max_results_per_query,omitempty"`
+}
+
+// QARules controls conflict detection and gap analysis levels.
+type QARules struct {
+	// ConflictLevel: off | light | moderate | max
+	ConflictLevel string `yaml:"conflict_level,omitempty"`
+	// GapLevel: off | light | moderate | max
+	GapLevel string `yaml:"gap_level,omitempty"`
+}
+
 // Rules is the parsed config/rules.yaml for a book project.
 type Rules struct {
 	Language  string         `yaml:"language,omitempty"`
 	WordCount WordCountRules `yaml:"word_count"`
+	Research  ResearchRules  `yaml:"research,omitempty"`
+	QA        QARules        `yaml:"qa,omitempty"`
 }
 
 // LoadRules reads config/rules.yaml from the book directory.
@@ -46,6 +66,18 @@ func LoadRules(bookDir string) (*Rules, error) {
 	}
 	if r.WordCount.Max == 0 {
 		r.WordCount.Max = r.WordCount.Target * 3
+	}
+	if r.Research.MaxQueriesPerChapter == 0 {
+		r.Research.MaxQueriesPerChapter = 5
+	}
+	if r.Research.MaxResultsPerQuery == 0 {
+		r.Research.MaxResultsPerQuery = 3
+	}
+	if r.QA.ConflictLevel == "" {
+		r.QA.ConflictLevel = "light"
+	}
+	if r.QA.GapLevel == "" {
+		r.QA.GapLevel = "light"
 	}
 	return r, nil
 }

@@ -19,3 +19,9 @@ pipeline:
 tui:
   tui-patterns:
     description: Command registry + alias checklist, centralized keybindings in keys.go, sidebar tab extension pattern
+
+future:
+  zk-integration:
+    description: Deferred zk runtime integration — prerequisites (JSON output, stdin piping, RTL support), design, and release gate checklist
+  skills-plan:
+    description: 14 Claude skills to integrate — use cases, decisions (Composio auth, Gemini key, one master Google Doc), and 3-wave implementation order

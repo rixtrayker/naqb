@@ -1,3 +1,7 @@
+# Environment / secrets — never commit
+.env
+.env.*
+
 # Build output
 bin/
 dist/
@@ -27,3 +31,7 @@ coverage.html
 # but listed here as a safety net if nqb itself is in a book dir.
 output/
 contexts/
+
+# Scratch / planning files
+brainstrom.md
+plan.md

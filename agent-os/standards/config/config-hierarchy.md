@@ -31,6 +31,21 @@ func LoadRules(bookDir string) (*Rules, error) {
 - Only optional config (rules.yaml) uses the fail-safe default pattern.
 - Zero values in a partial `rules.yaml` are filled in: `Target=3000`, `Min=Target/2`, `Max=Target*3`
 
+## Storage Format Rules
+
+No database. All data stays in plain files, git-tracked.
+
+| Format | Used for | Who writes it |
+|---|---|---|
+| YAML | Config, metadata, book manifest, vault registry | Humans + `nqb init` |
+| Markdown | Chapters, research notes, context files | LLM + Scribe |
+| JSON | Logs, session history, generated/streamed data | Machines only |
+
+- Never introduce SQLite, BoltDB, or any embedded DB without a concrete pain point
+- If a new data type fits in a file, use a file
+- Chat session logs → JSON files in `.naqb/sessions/` (if/when added)
+- Vault stays YAML until 50+ projects make it slow (not yet)
+
 ## Provider Override Levels
 
 LLM provider resolution order (most specific wins):

@@ -54,6 +54,50 @@ if model == "" {
 - book.yaml LLM settings always override agent defaults
 - Add new model constants to `internal/llm/models.go`, not inline strings
 
+## Research Note Format
+
+Every note saved by `Scribe` must have a YAML frontmatter header:
+
+```markdown
+---
+title: "The Topic Title"
+chapter: 1
+tags: [research, ch-01]
+source: "https://..."
+date: "2026-03-15"
+---
+
+## The Topic Title
+Content...
+```
+
+- Title: extracted from the first `##` heading in the note body
+- Source: extracted from a `Source:` line or bare `http(s)://` URL in the body
+- Tags: always `["research", "ch-NN"]` — enables future filtering by chapter
+- Date: `time.Now().Format("2006-01-02")` at write time
+
+This format is owned by `buildFrontmatter()` in `internal/research/scribe.go`.
+Do not inline frontmatter construction elsewhere.
+
+## Research Note Retrieval (Two-Tier)
+
+`buildResearchNotes()` in `internal/agents/context_builder.go` uses two tiers:
+
+| Tier | Condition | Implementation |
+|---|---|---|
+| 1 — Semantic | `OPENAI_API_KEY` or `MISTRAL_API_KEY` set | `store.QueryResearch()` via chromem-go embeddings |
+| 2 — Keyword | Always available | `store.QueryResearch()` → `keywordSearch()` file scan |
+
+`store.QueryResearch()` routes automatically: semantic when an embedder is
+configured, file-scan keyword otherwise. The caller does not need to branch.
+
+Keyword scoring in `keywordSearch()`:
+- Heading match (`# …`): **3 points per query word**
+- Body occurrence: **1 point per query word**
+- Returns top-K by score descending
+
+Do not add a Tier 3 or any other fallback without updating this standard.
+
 ## Semantic Output Validation
 
 For advisory agents (conflict, gap analysis), use keyword heuristics to classify LLM output rather than structured output:

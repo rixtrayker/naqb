@@ -34,6 +34,17 @@ type LLMSettings struct {
 	InitProvider  string `yaml:"init_provider,omitempty"`
 }
 
+// SyncConfig holds external sync targets for the book.
+type SyncConfig struct {
+	// GDocsID is the Google Docs document ID for the master book document.
+	// Set automatically by `nqb sync gdocs` on first run.
+	GDocsID string `yaml:"gdocs_id,omitempty"`
+	// GDocsURL is the human-readable Google Docs URL (informational only).
+	GDocsURL string `yaml:"gdocs_url,omitempty"`
+	// ComposioUserID is the Composio external user ID for OAuth connections.
+	ComposioUserID string `yaml:"composio_user_id,omitempty"`
+}
+
 // BookConfig is the book.yaml manifest.
 type BookConfig struct {
 	Title       string      `yaml:"title"`
@@ -44,6 +55,7 @@ type BookConfig struct {
 	TargetWords int         `yaml:"target_words,omitempty"` // per chapter
 	Chapters    []Chapter   `yaml:"chapters"`
 	LLM         LLMSettings `yaml:"llm,omitempty"`
+	Sync        SyncConfig  `yaml:"sync,omitempty"`
 	CreatedAt   time.Time   `yaml:"created_at,omitempty"`
 	Version     string      `yaml:"version,omitempty"`
 }

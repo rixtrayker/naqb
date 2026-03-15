@@ -4,7 +4,9 @@ package config
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -81,27 +83,83 @@ func SaveGlobal(cfg *GlobalConfig) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-// APIKey returns the Anthropic API key from env or global config.
-// Checks in order: ANTHROPIC_API_KEY env var → default provider config → legacy api_key field.
+// APIKey returns the Anthropic API key, checking in order:
+//  1. ANTHROPIC_API_KEY environment variable
+//  2. macOS Keychain (service name: ANTHROPIC_API_KEY)
+//  3. ~/.naqb/config.yaml default provider → legacy api_key field
 func APIKey() (string, error) {
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+		return key, nil
+	}
+	if key := keychainGet("ANTHROPIC_API_KEY"); key != "" {
 		return key, nil
 	}
 	cfg, err := LoadGlobal()
 	if err != nil {
 		return "", err
 	}
-	// Check the named default provider first.
 	if cfg.DefaultProvider != "" {
 		if p, ok := cfg.Providers[cfg.DefaultProvider]; ok && p.APIKey != "" {
 			return p.APIKey, nil
 		}
 	}
-	// Fall back to legacy top-level api_key.
 	if cfg.APIKey != "" {
 		return cfg.APIKey, nil
 	}
 	return "", fmt.Errorf("no API key found — set ANTHROPIC_API_KEY or run: nqb config")
+}
+
+// keychainGet retrieves a password stored under the given service name from the
+// macOS Keychain. Returns "" on any error (non-macOS, not found, etc.).
+func keychainGet(service string) string {
+	out, err := exec.Command("security", "find-generic-password",
+		"-a", os.Getenv("USER"), "-s", service, "-w").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// ComposioAPIKey returns the Composio API key, checking in order:
+//  1. COMPOSIO_API_KEY environment variable
+//  2. macOS Keychain (service name: COMPOSIO_API_KEY)
+//  3. ~/.naqb/config.yaml providers["composio"].api_key
+func ComposioAPIKey() string {
+	if key := os.Getenv("COMPOSIO_API_KEY"); key != "" {
+		return key
+	}
+	if key := keychainGet("COMPOSIO_API_KEY"); key != "" {
+		return key
+	}
+	cfg, err := LoadGlobal()
+	if err != nil {
+		return ""
+	}
+	if p, ok := cfg.Providers["composio"]; ok && p.APIKey != "" {
+		return p.APIKey
+	}
+	return ""
+}
+
+// GeminiAPIKey returns the Gemini API key from, in order:
+//  1. GEMINI_API_KEY environment variable
+//  2. macOS Keychain (service name: GEMINI_API_KEY)
+//  3. ~/.naqb/config.yaml providers["gemini"].api_key
+func GeminiAPIKey() string {
+	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+		return key
+	}
+	if key := keychainGet("GEMINI_API_KEY"); key != "" {
+		return key
+	}
+	cfg, err := LoadGlobal()
+	if err != nil {
+		return ""
+	}
+	if p, ok := cfg.Providers["gemini"]; ok && p.APIKey != "" {
+		return p.APIKey
+	}
+	return ""
 }
 
 // ProviderConfigFor returns the ProviderConfig for a named provider, or the

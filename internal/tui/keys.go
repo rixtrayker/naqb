@@ -192,6 +192,12 @@ var InitFormBindings = []Binding{
 	{Key: "Ctrl+C", Desc: "Cancel"},
 }
 
+// ImportFormBindings are the keybindings shown in the import wizard footer.
+var ImportFormBindings = []Binding{
+	{Key: "Enter", Desc: "Confirm"},
+	{Key: "Ctrl+C", Desc: "Cancel"},
+}
+
 // ── Help overlay ─────────────────────────────────────────────────────────────
 
 // HelpSection groups related bindings under a heading.

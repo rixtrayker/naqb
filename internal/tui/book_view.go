@@ -17,20 +17,27 @@ import (
 // ── Styles ──────────────────────────────────────────────────────────────────
 
 var (
-	bvTitleStyle = lipgloss.NewStyle().
+	bvHeaderStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("99")).
-			Padding(0, 1)
+			Foreground(ColorPrimary).
+			Background(ColorBg).
+			Padding(0, 2)
+
+	bvHeaderMetaStyle = lipgloss.NewStyle().
+				Faint(true).
+				Foreground(ColorDim).
+				Background(ColorBg).
+				Padding(0, 1)
 
 	bvSidebarStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, true, false, false).
-			BorderForeground(lipgloss.Color("238")).
+			BorderForeground(ColorBorder).
 			PaddingRight(1).
-			Width(22)
+			Width(24)
 
 	bvSidebarKeyStyle = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(lipgloss.Color("212"))
+				Foreground(ColorAccent)
 
 	bvSidebarLabelStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("250"))
@@ -39,7 +46,7 @@ var (
 			PaddingLeft(2)
 
 	bvChapterActive = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("86")).
+			Foreground(ColorAccent).
 			Bold(true)
 
 	bvChapterDone = lipgloss.NewStyle().
@@ -54,15 +61,11 @@ var (
 
 	bvCmdPaletteStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("62")).
+				BorderForeground(ColorSecondary).
 				Padding(0, 1).
 				Width(60)
 
 	bvOutputStyle = lipgloss.NewStyle().
-			Faint(true).
-			PaddingLeft(2)
-
-	bvFooterStyle = lipgloss.NewStyle().
 			Faint(true).
 			PaddingLeft(2)
 )
@@ -269,7 +272,6 @@ func (m *BookViewModel) runCommand(input string) tea.Cmd {
 	}
 }
 
-
 // ── View ──────────────────────────────────────────────────────────────────────
 
 func (m *BookViewModel) View() string {
@@ -282,17 +284,37 @@ func (m *BookViewModel) View() string {
 		return "\n" + RenderHelpOverlay(BookViewHelpSections) + "\n"
 	}
 
-	sidebar := m.renderSidebar()
-	main := m.renderMain()
-
-	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, main)
-
-	title := bvTitleStyle.Render(fmt.Sprintf("نقب  %s", m.cfg.Title))
-
 	var full strings.Builder
-	full.WriteString(title + "\n")
+
+	// ── Header bar (full width) ──────────────────────────────────────────────
+	chCount := len(m.cfg.Chapters)
+	written := 0
+	for _, ch := range m.cfg.Chapters {
+		if _, err := os.Stat(filepath.Join(m.bookDir, "chapters", ch.File)); err == nil {
+			written++
+		}
+	}
+	headerTitle := bvHeaderStyle.Render(fmt.Sprintf("نقب  %s", m.cfg.Title))
+	headerMeta := bvHeaderMetaStyle.Render(fmt.Sprintf(
+		"by %s  ·  %d/%d chapters  ·  %s",
+		m.cfg.Author, written, chCount, m.cfg.Language,
+	))
+	headerBar := lipgloss.JoinHorizontal(lipgloss.Top, headerTitle, headerMeta)
+	full.WriteString(lipgloss.NewStyle().
+		Background(ColorBg).
+		Width(m.width).
+		Render(headerBar) + "\n")
+	full.WriteString(lipgloss.NewStyle().
+		Foreground(ColorBorder).
+		Render(strings.Repeat("─", m.width)) + "\n")
+
+	// ── Body: sidebar + main ──────────────────────────────────────────────────
+	sidebarContent := m.renderSidebar()
+	mainContent := m.renderMain()
+	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebarContent, mainContent)
 	full.WriteString(body + "\n")
 
+	// ── Command palette overlay ───────────────────────────────────────────────
 	if m.showPalette {
 		palette := bvCmdPaletteStyle.Render(
 			"Command palette\n" +
@@ -310,24 +332,36 @@ func (m *BookViewModel) View() string {
 		}
 	}
 
-	// Footer hint bar
-	full.WriteString("\n" + renderHintBar(BookViewBindings) + "\n")
+	// ── Bottom status bar ────────────────────────────────────────────────────
+	var chInfo string
+	if m.cursor < len(m.cfg.Chapters) {
+		ch := m.cfg.Chapters[m.cursor]
+		chInfo = fmt.Sprintf("Ch%02d: %s", ch.Number, ch.Title)
+		if len(chInfo) > 30 {
+			chInfo = chInfo[:27] + "..."
+		}
+	}
+	statusLeft := StatusKeyStyle.Render(chInfo)
+	bottomBar := renderStatusBar(append([]Binding{{Key: "sel", Desc: chInfo}}, BookViewBindings...), m.width)
+	_ = statusLeft
+	full.WriteString("\n" + bottomBar + "\n")
+
 	return full.String()
 }
 
 func (m *BookViewModel) renderSidebar() string {
-	sidebarW := 22
+	sidebarW := 24
 	tabBar := renderTabBar(m.activeTab, sidebarW)
 	content := renderSidebarContent(m.activeTab, m.bookDir, m.cfg, sidebarActions)
 
 	var sb strings.Builder
 	sb.WriteString(tabBar + "\n\n")
 	sb.WriteString(content)
-	return bvSidebarStyle.Render(sb.String())
+	return bvSidebarStyle.Width(sidebarW).Render(sb.String())
 }
 
 func (m *BookViewModel) renderMain() string {
-	mainW := m.width - 26
+	mainW := m.width - 28
 	if mainW < 20 {
 		mainW = 20
 	}
@@ -336,32 +370,58 @@ func (m *BookViewModel) renderMain() string {
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Faint(true).PaddingLeft(1).Render("CHAPTERS") + "\n\n")
 
 	for i, ch := range m.cfg.Chapters {
-		icon := "○"
-		chStyle := bvChapterPending
 		chapPath := filepath.Join(m.bookDir, "chapters", ch.File)
+		exists := false
 		if _, err := os.Stat(chapPath); err == nil {
-			icon = "●"
-			chStyle = bvChapterDone
+			exists = true
 		}
-		if i == m.cursor {
-			icon = "▶"
+
+		var pill string
+		var chStyle lipgloss.Style
+		switch {
+		case i == m.cursor && exists:
+			pill = PillWritten.Render("✓")
 			chStyle = bvChapterActive
+		case i == m.cursor:
+			pill = PillPending.Render("·")
+			chStyle = bvChapterActive
+		case ch.Status == "imported":
+			pill = PillImported.Render("↓")
+			chStyle = bvChapterDone
+		case exists:
+			pill = PillWritten.Render("✓")
+			chStyle = bvChapterDone
+		default:
+			pill = PillPending.Render("·")
+			chStyle = bvChapterPending
 		}
 
 		title := ch.Title
-		if len(title) > mainW-10 {
-			title = title[:mainW-13] + "..."
+		maxTitleW := mainW - 14
+		if maxTitleW < 10 {
+			maxTitleW = 10
 		}
-		line := fmt.Sprintf(" %s  Ch%02d  %s", icon, ch.Number, title)
+		if len(title) > maxTitleW {
+			title = title[:maxTitleW-3] + "..."
+		}
+
+		var cursor string
+		if i == m.cursor {
+			cursor = bvChapterActive.Render("▶")
+		} else {
+			cursor = "  "
+		}
+
+		line := fmt.Sprintf("%s %s  Ch%02d  %s", cursor, pill, ch.Number, title)
 		sb.WriteString(chStyle.Render(line) + "\n")
 	}
 
-	// Show selected chapter detail
+	// Selected chapter detail
 	if m.cursor < len(m.cfg.Chapters) {
 		ch := m.cfg.Chapters[m.cursor]
 		sb.WriteString("\n")
 		sb.WriteString(lipgloss.NewStyle().Faint(true).PaddingLeft(2).
-			Render(fmt.Sprintf("Selected: Chapter %d — %s", ch.Number, ch.Title)) + "\n")
+			Render(fmt.Sprintf("Chapter %d — %s", ch.Number, ch.Title)) + "\n")
 		if ch.Summary != "" {
 			summary := ch.Summary
 			if len(summary) > mainW-4 {

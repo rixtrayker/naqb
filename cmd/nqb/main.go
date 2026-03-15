@@ -44,6 +44,9 @@ func main() {
 		commands.ResearchCmd(),
 		commands.IndexCmd(),
 		commands.MCPCmd(),
+		commands.SyncCmd(),
+		commands.ImportCmd(),
+		commands.FixCmd(),
 		vault.Cmd(),
 		commands.CompletionCmd(rootCmd),
 	)

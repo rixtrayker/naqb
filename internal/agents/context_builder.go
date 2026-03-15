@@ -219,25 +219,32 @@ func buildFinishedSummaries(cfg *config.BookConfig, currentChapter int) string {
 	return strings.Join(parts, "\n")
 }
 
-// buildResearchNotes queries the vector store for semantically relevant
-// research notes. Returns "" if the store has no embedder or no indexed docs.
+// buildResearchNotes retrieves relevant research notes using a two-tier strategy:
+//
+//	Tier 1: Vector semantic search (OPENAI/MISTRAL key present)
+//	Tier 2: File-scan keyword search (always available, no API key needed)
 func buildResearchNotes(ctx context.Context, bookDir, chapterTitle, chapterSummary string) string {
-	store, err := search.Open(bookDir)
-	if err != nil || !store.HasEmbedder() {
-		return ""
-	}
-	defer store.Close()
-
 	query := chapterTitle
 	if chapterSummary != "" {
 		query = chapterTitle + ". " + chapterSummary
 	}
 
+	store, err := search.Open(bookDir)
+	if err != nil {
+		return ""
+	}
+	defer store.Close()
+
+	// QueryResearch uses semantic search when an embedder is available,
+	// and falls back to file-scan keyword search otherwise.
 	results, err := store.QueryResearch(ctx, query, 5)
 	if err != nil || len(results) == 0 {
 		return ""
 	}
+	return formatResults(results)
+}
 
+func formatResults(results []search.SearchResult) string {
 	var parts []string
 	for _, r := range results {
 		name := r.ID

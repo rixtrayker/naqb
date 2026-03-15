@@ -24,6 +24,7 @@ type Store struct {
 	db          *chromem.DB
 	embedFunc   chromem.EmbeddingFunc
 	hasEmbedder bool
+	bookDir     string // for keyword fallback file scanning
 }
 
 // Open opens (or creates) the vector store for a book project.
@@ -39,7 +40,7 @@ func Open(bookDir string) (*Store, error) {
 		return nil, fmt.Errorf("opening vector store: %w", err)
 	}
 
-	s := &Store{db: db}
+	s := &Store{db: db, bookDir: bookDir}
 	s.embedFunc, s.hasEmbedder = resolveEmbedder()
 	return s, nil
 }
@@ -108,12 +109,11 @@ type SearchResult struct {
 // Query searches a collection for the most relevant documents.
 // Uses semantic search when embeddings are available, keyword fallback otherwise.
 func (s *Store) Query(ctx context.Context, collection, queryText string, topK int) ([]SearchResult, error) {
-	col := s.db.GetCollection(collection, s.embedFunc)
-	if col == nil || col.Count() == 0 {
-		return nil, nil
-	}
-
 	if s.hasEmbedder {
+		col := s.db.GetCollection(collection, s.embedFunc)
+		if col == nil || col.Count() == 0 {
+			return nil, nil
+		}
 		results, err := col.Query(ctx, queryText, topK, nil, nil)
 		if err != nil {
 			return nil, fmt.Errorf("vector query: %w", err)
@@ -121,21 +121,95 @@ func (s *Store) Query(ctx context.Context, collection, queryText string, topK in
 		return convertResults(results), nil
 	}
 
-	// Keyword fallback: simple substring match over all documents
-	return s.keywordSearch(ctx, col, queryText, topK)
+	// Keyword fallback: file scan (works without an indexed collection)
+	return s.keywordSearch(ctx, nil, queryText, topK)
 }
 
-// keywordSearch does naive substring matching when no embedder is available.
-func (s *Store) keywordSearch(_ context.Context, col *chromem.Collection, query string, topK int) ([]SearchResult, error) {
-	query = strings.ToLower(query)
-	words := strings.Fields(query)
+// keywordSearch scans .md files in the research dirs directly and scores them
+// by keyword frequency. This is used when no embedding API key is available.
+// Scoring: title/heading match = 3 pts per word, body match = 1 pt per word.
+func (s *Store) keywordSearch(_ context.Context, _ *chromem.Collection, query string, topK int) ([]SearchResult, error) {
+	words := strings.Fields(strings.ToLower(query))
+	if len(words) == 0 {
+		return nil, nil
+	}
 
-	// chromem doesn't expose list-all, so we use QueryEmbedding with zeros
-	// to get all docs, then filter client-side. For small book projects this is fine.
-	_ = words
-	// Fallback: return empty (keyword search without enumeration API is not supported)
-	// Users get semantic search once they set OPENAI_API_KEY or MISTRAL_API_KEY.
-	return nil, nil
+	// Scan research directories
+	dirs := []string{
+		filepath.Join(s.bookDir, ".naqb", "research"),
+		filepath.Join(s.bookDir, "research"),
+	}
+
+	type scored struct {
+		res   SearchResult
+		score int
+	}
+	var candidates []scored
+
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			if !strings.HasSuffix(name, ".md") && !strings.HasSuffix(name, ".txt") {
+				continue
+			}
+			path := filepath.Join(dir, name)
+			data, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			content := string(data)
+			lower := strings.ToLower(content)
+
+			score := 0
+			for _, w := range words {
+				// Check headings (lines starting with #)
+				for _, line := range strings.Split(lower, "\n") {
+					trimmed := strings.TrimSpace(line)
+					if strings.HasPrefix(trimmed, "#") && strings.Contains(trimmed, w) {
+						score += 3
+					}
+				}
+				// Count body occurrences
+				score += strings.Count(lower, w)
+			}
+
+			if score > 0 {
+				candidates = append(candidates, scored{
+					res: SearchResult{
+						ID:         name,
+						Content:    content,
+						Similarity: float32(score),
+						Path:       path,
+					},
+					score: score,
+				})
+			}
+		}
+	}
+
+	// Sort by score descending (insertion sort is fine for small sets)
+	for i := 1; i < len(candidates); i++ {
+		for j := i; j > 0 && candidates[j].score > candidates[j-1].score; j-- {
+			candidates[j], candidates[j-1] = candidates[j-1], candidates[j]
+		}
+	}
+
+	if topK > 0 && len(candidates) > topK {
+		candidates = candidates[:topK]
+	}
+
+	results := make([]SearchResult, len(candidates))
+	for i, c := range candidates {
+		results[i] = c.res
+	}
+	return results, nil
 }
 
 func (s *Store) getOrCreateCollection(name string) (*chromem.Collection, error) {
