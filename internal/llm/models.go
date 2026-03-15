@@ -23,3 +23,26 @@ const (
 	ModelAnthropicSonnet = "claude-sonnet-4-6"
 	ModelAnthropicOpus   = "claude-opus-4-6"
 )
+
+// ── AWS Bedrock model IDs (used when provider type = "bedrock") ───────────────
+// Format: {provider}.{model-slug}  — dot-notation used by the Converse API and
+// the bedrock-mantle OpenAI-compatible endpoint.
+// Enable model access at: https://console.aws.amazon.com/bedrock/home#/modelaccess
+
+const (
+	// BedrockModelMiniMaxM2 is MiniMax M2 on AWS Bedrock (generally available).
+	BedrockModelMiniMaxM2 = "minimax.minimax-m2"
+
+	// BedrockModelMiniMaxM21 is MiniMax M2.1 on AWS Bedrock (added Feb 2026).
+	// Improved reasoning, coding, and instruction following over M2.
+	BedrockModelMiniMaxM21 = "minimax.minimax-m2.1"
+
+	// BedrockModelMiniMaxM25 is MiniMax M2.5 on AWS Bedrock.
+	// Verify availability in the Bedrock console before use — model access must be enabled.
+	// If not yet listed, use BedrockModelMiniMaxM21 or route via OpenRouter instead.
+	BedrockModelMiniMaxM25 = "minimax.minimax-m2.5"
+
+	// ModelBedrockMiniMax is the recommended Bedrock MiniMax model (M2.5 where available,
+	// fall back to M2.1). Use this as the model ID when provider = "bedrock".
+	ModelBedrockMiniMax = BedrockModelMiniMaxM25
+)
