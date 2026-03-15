@@ -1,5 +1,9 @@
 # Agent OS Standards Index
 
+global:
+  testing:
+    description: go build ./... && go test ./... must pass after every change before committing
+
 agents:
   llm-agents:
     description: Go template prompts, graceful LLM output fallbacks, per-stage model routing, semantic output validation
