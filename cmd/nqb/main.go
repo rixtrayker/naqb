@@ -43,6 +43,7 @@ func main() {
 		commands.ConfigCmd(),
 		commands.ResearchCmd(),
 		commands.IndexCmd(),
+		commands.MCPCmd(),
 		vault.Cmd(),
 		commands.CompletionCmd(rootCmd),
 	)
