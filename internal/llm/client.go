@@ -2,29 +2,25 @@ package llm
 
 import "fmt"
 
-// Client is an alias for Provider kept for backwards compatibility.
-// New code should use the Provider interface directly.
-type Client = AnthropicProvider
+// Client is an alias for OpenRouterProvider — the default backend.
+// Kept as a concrete type alias so existing llm.New() callers still compile.
+type Client = OpenRouterProvider
 
-// New creates an AnthropicProvider with the provided API key.
-// Deprecated: use NewAnthropic directly or NewProvider for multi-provider support.
-func New(apiKey string) *AnthropicProvider {
-	return NewAnthropic(apiKey)
+// New creates an OpenRouterProvider with the provided API key.
+// This is the primary constructor; all commands should use this.
+func New(apiKey string) *OpenRouterProvider {
+	return NewOpenRouter(apiKey, "")
 }
 
-// NewProvider constructs a Provider from a named ProviderConfig.
-// Supported types: "anthropic", "openai-compat" (for Ollama/DeepSeek/z.ai), "gemini".
+// NewProvider constructs a Provider from a ProviderConfig.
+// Supported types: "openrouter" (default), "anthropic", "openai-compat".
 func NewProvider(cfg ProviderConfig) (Provider, error) {
 	switch cfg.Type {
-	case "", "anthropic":
+	case "", "openrouter", "openai-compat":
+		return NewOpenRouter(cfg.APIKey, cfg.BaseURL), nil
+	case "anthropic":
 		return NewAnthropic(cfg.APIKey), nil
-	case "openai-compat":
-		// Phase 2: implement OpenAI-compatible provider
-		return nil, fmt.Errorf("openai-compat provider not yet implemented")
-	case "gemini":
-		// Phase 2: implement Gemini provider
-		return nil, fmt.Errorf("gemini provider not yet implemented")
 	default:
-		return nil, fmt.Errorf("unknown provider type %q", cfg.Type)
+		return nil, fmt.Errorf("unknown provider type %q (supported: openrouter, anthropic, openai-compat)", cfg.Type)
 	}
 }

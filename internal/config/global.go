@@ -13,22 +13,22 @@ import (
 
 // ProviderConfig holds configuration for a named LLM provider entry.
 type ProviderConfig struct {
-	// Type is the provider kind: "anthropic", "openai-compat", "gemini".
+	// Type is the provider kind: "openrouter" (default), "anthropic", "openai-compat".
 	Type string `yaml:"type"`
 	// APIKey for this provider. Falls back to environment variable if empty.
 	APIKey string `yaml:"api_key,omitempty"`
-	// BaseURL for OpenAI-compatible providers (Ollama, DeepSeek, z.ai, Mistral, etc.).
+	// BaseURL for OpenAI-compatible providers (Ollama, DeepSeek, custom OpenRouter endpoints).
 	BaseURL string `yaml:"base_url,omitempty"`
 }
 
 // GlobalConfig holds ~/.naqb/config.yaml
 type GlobalConfig struct {
-	// APIKey is the default Anthropic API key (legacy field, kept for compatibility).
+	// APIKey is the legacy Anthropic API key field, kept for backwards compatibility.
 	APIKey string `yaml:"api_key,omitempty"`
 	// Providers is a named map of LLM provider configurations.
-	// Keys are arbitrary names like "anthropic", "deepseek", "local-ollama".
 	Providers map[string]ProviderConfig `yaml:"providers,omitempty"`
 	// DefaultProvider is the provider name used when a stage doesn't specify one.
+	// Defaults to "openrouter".
 	DefaultProvider string `yaml:"default_provider,omitempty"`
 	// DefaultModel is the fallback model when no per-stage model is set.
 	DefaultModel string `yaml:"default_model,omitempty"`
@@ -83,17 +83,28 @@ func SaveGlobal(cfg *GlobalConfig) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-// APIKey returns the Anthropic API key, checking in order:
-//  1. ANTHROPIC_API_KEY environment variable
-//  2. macOS Keychain (service name: ANTHROPIC_API_KEY)
-//  3. ~/.naqb/config.yaml default provider → legacy api_key field
+// APIKey returns the active LLM API key, checking in order:
+//  1. OPENROUTER_API_KEY environment variable
+//  2. macOS Keychain (service: OPENROUTER_API_KEY)
+//  3. ANTHROPIC_API_KEY environment variable (legacy fallback)
+//  4. macOS Keychain (service: ANTHROPIC_API_KEY)
+//  5. ~/.naqb/config.yaml default_provider → providers map → legacy api_key
 func APIKey() (string, error) {
+	// OpenRouter (preferred)
+	if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
+		return key, nil
+	}
+	if key := keychainGet("OPENROUTER_API_KEY"); key != "" {
+		return key, nil
+	}
+	// Anthropic (legacy fallback)
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 		return key, nil
 	}
 	if key := keychainGet("ANTHROPIC_API_KEY"); key != "" {
 		return key, nil
 	}
+	// Config file
 	cfg, err := LoadGlobal()
 	if err != nil {
 		return "", err
@@ -103,10 +114,14 @@ func APIKey() (string, error) {
 			return p.APIKey, nil
 		}
 	}
+	// Try "openrouter" provider directly
+	if p, ok := cfg.Providers["openrouter"]; ok && p.APIKey != "" {
+		return p.APIKey, nil
+	}
 	if cfg.APIKey != "" {
 		return cfg.APIKey, nil
 	}
-	return "", fmt.Errorf("no API key found — set ANTHROPIC_API_KEY or run: nqb config")
+	return "", fmt.Errorf("no API key found — set OPENROUTER_API_KEY or run: nqb config")
 }
 
 // keychainGet retrieves a password stored under the given service name from the
@@ -163,7 +178,7 @@ func GeminiAPIKey() string {
 }
 
 // ProviderConfigFor returns the ProviderConfig for a named provider, or the
-// default Anthropic config if the name is empty or not found.
+// default OpenRouter config if the name is empty or not found.
 func ProviderConfigFor(name string) (ProviderConfig, error) {
 	cfg, err := LoadGlobal()
 	if err != nil {
@@ -172,15 +187,18 @@ func ProviderConfigFor(name string) (ProviderConfig, error) {
 	if name == "" {
 		name = cfg.DefaultProvider
 	}
+	if name == "" {
+		name = "openrouter" // system default
+	}
 	if name != "" {
 		if p, ok := cfg.Providers[name]; ok {
 			return p, nil
 		}
 	}
-	// Fall back: synthesise an Anthropic config from the legacy api_key.
+	// Fall back: synthesise an openrouter config from the key lookup.
 	key, err := APIKey()
 	if err != nil {
 		return ProviderConfig{}, err
 	}
-	return ProviderConfig{Type: "anthropic", APIKey: key}, nil
+	return ProviderConfig{Type: "openrouter", APIKey: key}, nil
 }
