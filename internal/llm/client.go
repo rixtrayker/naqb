@@ -13,14 +13,17 @@ func New(apiKey string) *OpenRouterProvider {
 }
 
 // NewProvider constructs a Provider from a ProviderConfig.
-// Supported types: "openrouter" (default), "anthropic", "openai-compat".
+// Supported types: "openrouter" (default), "anthropic", "openai-compat", "bedrock".
 func NewProvider(cfg ProviderConfig) (Provider, error) {
 	switch cfg.Type {
 	case "", "openrouter", "openai-compat":
 		return NewOpenRouter(cfg.APIKey, cfg.BaseURL), nil
 	case "anthropic":
 		return NewAnthropic(cfg.APIKey), nil
+	case "bedrock":
+		// APIKey doubles as AWS_ACCESS_KEY_ID for the bedrock provider.
+		return NewBedrock(cfg.APIKey, cfg.SecretAccessKey, cfg.Region), nil
 	default:
-		return nil, fmt.Errorf("unknown provider type %q (supported: openrouter, anthropic, openai-compat)", cfg.Type)
+		return nil, fmt.Errorf("unknown provider type %q (supported: openrouter, anthropic, openai-compat, bedrock)", cfg.Type)
 	}
 }

@@ -42,7 +42,8 @@ const (
 	// If not yet listed, use BedrockModelMiniMaxM21 or route via OpenRouter instead.
 	BedrockModelMiniMaxM25 = "minimax.minimax-m2.5"
 
-	// ModelBedrockMiniMax is the recommended Bedrock MiniMax model (M2.5 where available,
-	// fall back to M2.1). Use this as the model ID when provider = "bedrock".
-	ModelBedrockMiniMax = BedrockModelMiniMaxM25
+	// ModelBedrockMiniMax is the recommended Bedrock MiniMax model.
+	// Using M2.1 (confirmed GA Feb 2026) until M2.5 is verified available in the console.
+	// Switch to BedrockModelMiniMaxM25 once confirmed.
+	ModelBedrockMiniMax = BedrockModelMiniMaxM21
 )

@@ -33,9 +33,11 @@ func providerFor(providerFlag, namedProvider string) (llm.Provider, error) {
 
 	// Convert config.ProviderConfig → llm.ProviderConfig (identical fields, different packages).
 	p, err := llm.NewProvider(llm.ProviderConfig{
-		Type:    pcfg.Type,
-		APIKey:  pcfg.APIKey,
-		BaseURL: pcfg.BaseURL,
+		Type:            pcfg.Type,
+		APIKey:          pcfg.APIKey,
+		BaseURL:         pcfg.BaseURL,
+		SecretAccessKey: pcfg.SecretAccessKey,
+		Region:          pcfg.Region,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating provider %q: %w", name, err)

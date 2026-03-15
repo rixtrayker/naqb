@@ -25,10 +25,14 @@ type Provider interface {
 
 // ProviderConfig holds configuration for a named LLM provider.
 type ProviderConfig struct {
-	// Type is the provider kind: "anthropic", "openai-compat", "gemini".
+	// Type is the provider kind: "anthropic", "openai-compat", "bedrock".
 	Type string `yaml:"type"`
 	// APIKey for this provider. Falls back to environment variable if empty.
 	APIKey string `yaml:"api_key,omitempty"`
 	// BaseURL for OpenAI-compatible providers (e.g. Ollama, DeepSeek, z.ai).
 	BaseURL string `yaml:"base_url,omitempty"`
+	// SecretAccessKey is the AWS secret access key (Bedrock provider only).
+	SecretAccessKey string `yaml:"secret_access_key,omitempty"`
+	// Region is the AWS region (Bedrock provider only). Defaults to eu-central-1.
+	Region string `yaml:"region,omitempty"`
 }

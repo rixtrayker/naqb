@@ -13,12 +13,17 @@ import (
 
 // ProviderConfig holds configuration for a named LLM provider entry.
 type ProviderConfig struct {
-	// Type is the provider kind: "openrouter" (default), "anthropic", "openai-compat".
+	// Type is the provider kind: "openrouter" (default), "anthropic", "openai-compat", "bedrock".
 	Type string `yaml:"type"`
 	// APIKey for this provider. Falls back to environment variable if empty.
+	// For "bedrock", this is the AWS_ACCESS_KEY_ID.
 	APIKey string `yaml:"api_key,omitempty"`
 	// BaseURL for OpenAI-compatible providers (Ollama, DeepSeek, custom OpenRouter endpoints).
 	BaseURL string `yaml:"base_url,omitempty"`
+	// SecretAccessKey is the AWS secret access key (bedrock provider only).
+	SecretAccessKey string `yaml:"secret_access_key,omitempty"`
+	// Region is the AWS region (bedrock provider only). Defaults to eu-central-1.
+	Region string `yaml:"region,omitempty"`
 }
 
 // GlobalConfig holds ~/.naqb/config.yaml
