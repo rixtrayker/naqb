@@ -1,94 +1,90 @@
-# AWS Bedrock — MiniMax M2.5 Integration Guide
+# AWS Bedrock — MiniMax Integration
 
-This guide documents how to connect **nqb** to MiniMax models running on AWS Bedrock as an alternative to OpenRouter.
+## What Changed (commits d4b5367 → 9a7ef15 → 69bd4f3)
 
----
+### `d4b5367` — Switch default backend to OpenRouter + minimax/minimax-m2.5
 
-## Why Bedrock?
+**Files:** `internal/llm/openrouter.go` *(new)*, `internal/llm/client.go`, `internal/llm/models.go`, `internal/config/global.go`
 
-| | OpenRouter | AWS Bedrock |
-|---|---|---|
-| **Setup** | Single API key | IAM credentials + model access grant |
-| **Billing** | OpenRouter invoice | AWS invoice (pay-per-token) |
-| **Latency** | Varies by routing | Consistent (in-region) |
-| **Data residency** | OpenRouter infra | Stays in your AWS region |
-| **MiniMax M2.5** | ✅ Available now | ⚠️ M2 / M2.1 confirmed; M2.5 pending |
-
----
-
-## Available MiniMax Models on AWS Bedrock
-
-| Model | Bedrock Model ID | Status (March 2026) |
-|---|---|---|
-| MiniMax M2 | `minimax.minimax-m2` | ✅ GA |
-| MiniMax M2.1 | `minimax.minimax-m2.1` | ✅ GA (added Feb 2026) |
-| MiniMax M2.5 | `minimax.minimax-m2.5` | ⚠️ Not yet confirmed — verify in console |
-
-> **Note:** MiniMax M2.5 is available on OpenRouter as `minimax/minimax-m2.5`. On Bedrock, the latest confirmed model is M2.1. Check the [Bedrock model access console](https://console.aws.amazon.com/bedrock/home#/modelaccess) for the current list.
+- Added `OpenRouterProvider` — pure `net/http` OpenAI-compatible client with SSE streaming. No extra deps.
+- `client.go`: `Client` type alias now points to `OpenRouterProvider`. `New(apiKey)` calls `NewOpenRouter(apiKey, "")`.
+- `NewProvider()` switch: `"" | "openrouter" | "openai-compat"` → `NewOpenRouter`, `"anthropic"` → `NewAnthropic`, `"bedrock"` → `NewBedrock`.
+- `models.go`: `ModelDefault = ModelMiniMax = "minimax/minimax-m2.5"`. `ModelHaiku`/`ModelSonnet` aliased to MiniMax; `ModelOpus` → `"anthropic/claude-opus-4-5"` via OpenRouter.
+- `config/global.go`: `APIKey()` checks `OPENROUTER_API_KEY` first (env → Keychain), then `ANTHROPIC_API_KEY` as fallback. `ProviderConfigFor()` defaults to `"openrouter"`.
+- **MiniMax quirk fix:** `content` field is a `*string` (pointer) — reasoning models return `null` when `max_tokens` is too low; enforces 512-token minimum in `Complete()`.
 
 ---
 
-## How It Works
+### `9a7ef15` — Correct Bedrock model ID constants
 
-nqb uses two complementary approaches for Bedrock:
+**Files:** `internal/llm/models.go`, `bedrock.md` *(new)*
 
-### Approach A — Converse API (AWS SDK v2) — `provider type: bedrock`
+Replaced the stale `eu.minimax.minimax-text-01-v1:0` constant with the correct AWS dot-notation IDs:
 
-Uses the native AWS `bedrockruntime` SDK with the **Converse API**. Supports all Bedrock-listed models, proper SigV4 request signing, and ConverseStream for token-by-token output.
-
-**Go package:** `github.com/aws/aws-sdk-go-v2/service/bedrockruntime`
-**Auth:** `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` (static IAM credentials)
-
-### Approach B — bedrock-mantle OpenAI-compatible endpoint — `provider type: openai-compat`
-
-AWS exposes an OpenAI-compatible endpoint called **bedrock-mantle** that nqb's existing `OpenRouterProvider` can call directly. No AWS SDK needed — just a Bearer token.
-
-**Base URL pattern:** `https://bedrock-mantle.{region}.api.aws/v1`
-**Auth:** Bedrock API key from AWS console (short-lived token, not IAM keys)
-
----
-
-## Setup
-
-### Step 1 — Enable Model Access
-
-1. Open the [AWS Bedrock console](https://console.aws.amazon.com/bedrock/home#/modelaccess)
-2. Click **Modify model access**
-3. Find **MiniMax** in the list → check **MiniMax M2.1** (and M2.5 when available)
-4. Click **Save changes** — approval is usually instant for MiniMax
-
-### Step 2 — Create IAM Credentials
-
-Create an IAM user or role with this minimal policy:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "bedrock:InvokeModel",
-        "bedrock:InvokeModelWithResponseStream",
-        "bedrock:Converse",
-        "bedrock:ConverseStream"
-      ],
-      "Resource": [
-        "arn:aws:bedrock:*::foundation-model/minimax.minimax-m2",
-        "arn:aws:bedrock:*::foundation-model/minimax.minimax-m2.1",
-        "arn:aws:bedrock:*::foundation-model/minimax.minimax-m2.5"
-      ]
-    }
-  ]
-}
+```go
+BedrockModelMiniMaxM2  = "minimax.minimax-m2"   // GA
+BedrockModelMiniMaxM21 = "minimax.minimax-m2.1" // GA — added Feb 2026
+BedrockModelMiniMaxM25 = "minimax.minimax-m2.5" // not yet confirmed in console
+ModelBedrockMiniMax    = BedrockModelMiniMaxM21  // safe default until M2.5 is verified
 ```
 
-### Step 3 — Configure nqb
+---
 
-Add a `bedrock` provider block to `~/.naqb/config.yaml`:
+### `69bd4f3` — Native AWS Bedrock provider (Converse API)
+
+**Files:** `internal/llm/bedrock.go` *(new)*, `internal/llm/provider.go`, `internal/llm/client.go`, `internal/config/global.go`, `internal/commands/provider.go`, `go.mod`
+
+Added `BedrockProvider` using the AWS SDK v2 Converse API as a no-OpenRouter path to MiniMax on Bedrock.
+
+**New Go dependencies** (`go.mod`):
+```
+github.com/aws/aws-sdk-go-v2/service/bedrockruntime
+github.com/aws/aws-sdk-go-v2/credentials
+```
+
+**`ProviderConfig`** (both `llm` and `config` packages) gained two new fields:
+```go
+SecretAccessKey string `yaml:"secret_access_key,omitempty"` // AWS_SECRET_ACCESS_KEY
+Region          string `yaml:"region,omitempty"`             // default: eu-central-1
+```
+
+`commands/provider.go` passes these through when constructing `llm.ProviderConfig`.
+
+**`NewBedrock(accessKeyID, secretAccessKey, region string)`** — builds a `bedrockruntime.Client` from static IAM credentials (`credentials.NewStaticCredentialsProvider`). Default region: `eu-central-1`.
+
+**`Complete()`** — calls `client.Converse()` → extracts text from `ConverseOutputMemberMessage.Content`.
+
+**`Stream()`** — calls `client.ConverseStream()` → ranges over `stream.Events()`, handles `ConverseStreamOutputMemberContentBlockDelta` → `ContentBlockDeltaMemberText`.
+
+---
+
+## Provider Reference
+
+### All provider types
+
+| `type` value | Constructor | Auth | Streaming |
+|---|---|---|---|
+| `openrouter` (default) | `NewOpenRouter(apiKey, baseURL)` | Bearer token | SSE `data:` lines |
+| `openai-compat` | `NewOpenRouter(apiKey, baseURL)` | Bearer token | SSE `data:` lines |
+| `anthropic` | `NewAnthropic(apiKey)` | Anthropic SDK | Anthropic SDK events |
+| `bedrock` | `NewBedrock(keyID, secret, region)` | IAM SigV4 | `ConverseStream` events |
+
+### Model ID formats
+
+| Provider | Format | Example |
+|---|---|---|
+| OpenRouter | `{provider}/{model}` | `minimax/minimax-m2.5` |
+| Bedrock Converse | `{provider}.{model}` | `minimax.minimax-m2.1` |
+| Anthropic | bare model ID | `claude-sonnet-4-6` |
+
+---
+
+## Configuration
+
+### `~/.naqb/config.yaml` — with both OpenRouter and Bedrock
 
 ```yaml
-default_provider: openrouter          # keep OpenRouter as default
+default_provider: openrouter
 
 providers:
   openrouter:
@@ -98,12 +94,12 @@ providers:
 
   bedrock:
     type: bedrock
-    api_key: "AKIAIOSFODNN7EXAMPLE"           # AWS_ACCESS_KEY_ID
-    secret_access_key: "wJalrXUtnFEMI/..."    # AWS_SECRET_ACCESS_KEY
-    region: "us-east-1"                       # AWS region with model access
+    api_key: "AKIAIOSFODNN7EXAMPLE"        # AWS_ACCESS_KEY_ID
+    secret_access_key: "wJalrXUtnFEMI/..."  # AWS_SECRET_ACCESS_KEY
+    region: "us-east-1"
 ```
 
-To use Bedrock for a specific book, add to `book.yaml`:
+### `book.yaml` — route specific stages to Bedrock
 
 ```yaml
 llm:
@@ -113,156 +109,105 @@ llm:
   qa_model: minimax.minimax-m2.1
 ```
 
-Or override per-command:
+### CLI override (any command with `--provider`)
 
 ```bash
 nqb write --chapter 3 --provider bedrock
-nqb fix --chapter 3 --provider bedrock
+nqb fix   --chapter 3 --provider bedrock
+nqb qa    --chapter 3 --provider bedrock
 ```
 
----
+### bedrock-mantle (OpenAI-compat, no IAM keys)
 
-## Approach B — bedrock-mantle (OpenAI-compat, no AWS SDK)
-
-If you prefer not to store IAM keys, AWS Bedrock provides an OpenAI-compatible endpoint via **Project Mantle**. Configure it as an `openai-compat` provider:
-
-### Get a Bedrock API Key
-
-```bash
-aws bedrock create-api-key \
-  --name "nqb-bedrock" \
-  --region us-east-1
-```
-
-This returns a short-lived token (valid until rotated). Store it in your config:
+AWS also exposes an OpenAI-compatible endpoint. Use `openai-compat` type — it routes through `OpenRouterProvider` with a custom base URL, no AWS SDK involved:
 
 ```yaml
 providers:
   bedrock-mantle:
     type: openai-compat
-    api_key: "bdck-..."                          # Bedrock API key (not IAM)
+    api_key: "bdck-..."   # Bedrock API key from console, not IAM
     base_url: "https://bedrock-mantle.us-east-1.api.aws/v1"
 ```
 
-Then set model as the Bedrock dot-notation ID:
-
-```yaml
-llm:
-  write_provider: bedrock-mantle
-  write_model: minimax.minimax-m2.1
-```
-
-The `openai-compat` type routes through `OpenRouterProvider` with the custom base URL — no code changes needed.
-
 ---
 
-## Supported AWS Regions
+## Model ID Constants
 
-MiniMax models are available in these Bedrock regions (in-region inference):
-
-| Region | Name |
-|---|---|
-| `us-east-1` | US East (N. Virginia) |
-| `us-east-2` | US East (Ohio) |
-| `us-west-2` | US West (Oregon) |
-| `eu-west-1` | Europe (Ireland) |
-| `eu-west-2` | Europe (London) |
-| `eu-south-1` | Europe (Milan) |
-| `ap-northeast-1` | Asia Pacific (Tokyo) |
-| `ap-south-1` | Asia Pacific (Mumbai) |
-| `ap-southeast-2` | Asia Pacific (Sydney) |
-| `sa-east-1` | South America (São Paulo) |
-
----
-
-## Code Reference
-
-### Go — direct Bedrock provider usage
+Defined in `internal/llm/models.go`:
 
 ```go
-import "github.com/amr/naqb/internal/llm"
+// OpenRouter (default provider)
+llm.ModelDefault         // "minimax/minimax-m2.5"  — used by all stages
+llm.ModelMiniMax         // "minimax/minimax-m2.5"
+llm.ModelHaiku           // "minimax/minimax-m2.5"  (aliased)
+llm.ModelSonnet          // "minimax/minimax-m2.5"  (aliased)
+llm.ModelOpus            // "anthropic/claude-opus-4-5" — heavy reasoning
 
-// Converse API (AWS SDK v2)
-provider := llm.NewBedrock(
-    "AKIAIOSFODNN7EXAMPLE",   // access key ID
-    "wJalrXUtnFEMI/...",      // secret access key
-    "us-east-1",              // region
-)
+// Anthropic native (provider type: "anthropic")
+llm.ModelAnthropicHaiku  // "claude-haiku-4-5-20251001"
+llm.ModelAnthropicSonnet // "claude-sonnet-4-6"
+llm.ModelAnthropicOpus   // "claude-opus-4-6"
 
-resp, err := provider.Complete(ctx,
-    llm.BedrockModelMiniMaxM21,   // "minimax.minimax-m2.1"
-    "You are an expert author.",
-    []llm.Message{{Role: "user", Content: "Write the intro."}},
-    4096,
-)
-```
-
-### Go — bedrock-mantle (OpenAI-compat, no IAM keys)
-
-```go
-import "github.com/amr/naqb/internal/llm"
-
-provider := llm.NewOpenRouter(
-    "bdck-YOUR_BEDROCK_API_KEY",
-    "https://bedrock-mantle.us-east-1.api.aws/v1",
-)
-
-resp, err := provider.Complete(ctx,
-    "minimax.minimax-m2.1",
-    "You are an expert author.",
-    []llm.Message{{Role: "user", Content: "Write the intro."}},
-    4096,
-)
-```
-
-### Model ID constants
-
-```go
-// In internal/llm/models.go
+// AWS Bedrock (provider type: "bedrock")
 llm.BedrockModelMiniMaxM2   // "minimax.minimax-m2"   — GA
 llm.BedrockModelMiniMaxM21  // "minimax.minimax-m2.1" — GA (Feb 2026)
-llm.BedrockModelMiniMaxM25  // "minimax.minimax-m2.5" — pending confirmation
-llm.ModelBedrockMiniMax     // alias → BedrockModelMiniMaxM25 (update when GA)
+llm.BedrockModelMiniMaxM25  // "minimax.minimax-m2.5" — not yet confirmed in console
+llm.ModelBedrockMiniMax     // alias → BedrockModelMiniMaxM21 (safe default)
 ```
 
 ---
 
-## API Comparison — Converse vs bedrock-mantle
+## Bedrock Setup
 
-| | Converse API (SDK) | bedrock-mantle (OpenAI-compat) |
+### 1. Enable model access
+
+[AWS Bedrock console → Model access](https://console.aws.amazon.com/bedrock/home#/modelaccess) → Modify → enable **MiniMax M2** and **MiniMax M2.1**.
+
+### 2. IAM policy (minimal)
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "bedrock:Converse",
+      "bedrock:ConverseStream"
+    ],
+    "Resource": [
+      "arn:aws:bedrock:*::foundation-model/minimax.minimax-m2",
+      "arn:aws:bedrock:*::foundation-model/minimax.minimax-m2.1"
+    ]
+  }]
+}
+```
+
+### 3. Supported regions
+
+`us-east-1` · `us-east-2` · `us-west-2` · `eu-west-1` · `eu-west-2` · `eu-south-1` · `ap-northeast-1` · `ap-south-1` · `ap-southeast-2` · `sa-east-1`
+
+Default region in `NewBedrock()`: `eu-central-1`.
+
+---
+
+## MiniMax M2.5 Availability
+
+| Route | Model ID | Status |
 |---|---|---|
-| **Auth** | IAM SigV4 | Bearer token (Bedrock API key) |
-| **Go deps** | `aws-sdk-go-v2/service/bedrockruntime` | `net/http` only |
-| **Streaming** | ConverseStream (typed events) | SSE `data:` lines |
-| **System prompt** | `System []SystemContentBlock` | `{"role":"system","content":"..."}` |
-| **Model ID format** | `minimax.minimax-m2.1` | `minimax.minimax-m2.1` (same) |
-| **nqb provider type** | `bedrock` | `openai-compat` |
+| **OpenRouter** | `minimax/minimax-m2.5` | ✅ Available now |
+| **AWS Bedrock** | `minimax.minimax-m2.5` | ⚠️ Not yet confirmed in console (March 2026) |
+| **AWS Bedrock** | `minimax.minimax-m2.1` | ✅ GA (Feb 2026) |
+
+Until `minimax.minimax-m2.5` appears in the Bedrock model access console, `ModelBedrockMiniMax` points to `BedrockModelMiniMaxM21`. Switch it to `BedrockModelMiniMaxM25` once enabled.
 
 ---
 
 ## Troubleshooting
 
-**`AccessDeniedException` on Converse call**
-→ Model access not enabled. Go to Bedrock console → Model access → enable MiniMax.
+**`AccessDeniedException`** — model access not enabled in the Bedrock console.
 
-**`ValidationException: model not found`**
-→ Model ID typo or model not yet in your region. Use `minimax.minimax-m2.1` (confirmed GA) instead of `minimax.minimax-m2.5`.
+**`ValidationException: model not found`** — model ID wrong or not available in your region. Use `minimax.minimax-m2.1` which is confirmed GA.
 
-**`minimax.minimax-m2.5` not listed in console**
-→ M2.5 is only confirmed on OpenRouter as of March 2026. Use OpenRouter (`minimax/minimax-m2.5`) or use `minimax.minimax-m2.1` on Bedrock.
+**Empty / null content** — `max_tokens` too low. MiniMax reasoning models spend tokens on a thinking trace before output. `OpenRouterProvider.Complete()` enforces a 512-token floor; `BedrockProvider` defaults to 8192.
 
-**Empty response / null content**
-→ `max_tokens` too low. MiniMax reasoning models use tokens for the thinking trace before producing output. The `BedrockProvider` enforces a 512-token minimum automatically.
-
-**Credential expiry on bedrock-mantle**
-→ Bedrock API keys are short-lived. Rotate with `aws bedrock create-api-key` and update `~/.naqb/config.yaml`.
-
----
-
-## Sources
-
-- [MiniMax M2 — Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-minimax-minimax-m2.html)
-- [MiniMax models — Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-minimax.html)
-- [Amazon Bedrock adds six open-weight models (Feb 2026)](https://aws.amazon.com/about-aws/whats-new/2026/02/amazon-bedrock-adds-support-six-open-weights-models/)
-- [Supported foundation models — Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html)
-- [bedrockruntime Go package](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/bedrockruntime)
+**Region mismatch** — model may not be available in `eu-central-1` (the `NewBedrock` default). Switch to `us-east-1`.
