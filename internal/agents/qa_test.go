@@ -1,6 +1,8 @@
 package agents
 
 import (
+	"context"
+	"os"
 	"testing"
 
 	"github.com/amr/naqb/internal/config"
@@ -169,6 +171,32 @@ func TestRunDeterministicChecks_NilConfig(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected word count too low with nil config, got: %v", issues)
+	}
+}
+
+// ── RunQA nil config ─────────────────────────────────────────────────────────
+
+func TestRunQA_NilConfig(t *testing.T) {
+	dir := t.TempDir()
+	// Create a chapter file so RunQA can read it
+	chapDir := dir + "/chapters"
+	if err := os.MkdirAll(chapDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(chapDir+"/ch-01.md", []byte("## Intro\n\n"+makeWords(600)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// nil client and nil config — should not panic
+	result, err := RunQA(context.Background(), nil, dir, nil, 1)
+	if err != nil {
+		t.Fatalf("RunQA with nil config should not error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.LLMReport != "(LLM audit skipped)" {
+		t.Errorf("expected LLM audit skipped with nil client, got: %q", result.LLMReport)
 	}
 }
 

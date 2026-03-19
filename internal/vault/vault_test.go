@@ -36,6 +36,34 @@ func TestLoadRegistry_FirstRun(t *testing.T) {
 	}
 }
 
+func TestLoadRegistry_CorruptYAML(t *testing.T) {
+	dir := newTestDir(t)
+	t.Setenv("HOME", dir)
+
+	// Write corrupt YAML to the registry file
+	regPath := filepath.Join(dir, ".naqb", "vault.yaml")
+	if err := os.MkdirAll(filepath.Dir(regPath), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(regPath, []byte("{{{{corrupt: [yaml: broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	reg, err := LoadRegistry()
+	if err != nil {
+		t.Fatalf("LoadRegistry should not error on corrupt YAML, got: %v", err)
+	}
+	if reg == nil {
+		t.Fatal("expected non-nil registry")
+	}
+	if len(reg.Vaults) == 0 {
+		t.Fatal("expected at least one vault (default)")
+	}
+	if reg.Vaults[0].Name != DefaultVaultName {
+		t.Errorf("expected default vault, got %q", reg.Vaults[0].Name)
+	}
+}
+
 func TestSaveAndLoadRegistry(t *testing.T) {
 	dir := newTestDir(t)
 	t.Setenv("HOME", dir)
