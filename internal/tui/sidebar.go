@@ -9,8 +9,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/wordcount"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/internal/tui/theme"
+	"github.com/amr/naqb/pkg/wordcount"
 )
 
 // sidebarTab identifies which sidebar panel is active.
@@ -41,6 +42,13 @@ var (
 	statBadStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 )
 
+// SidebarAction represents one action in the Actions tab.
+type SidebarAction struct {
+	Key   string
+	Label string
+	Cmd   string // slash command template
+}
+
 // renderTabBar returns the tab strip for the sidebar.
 func renderTabBar(active sidebarTab, width int) string {
 	var parts []string
@@ -61,7 +69,7 @@ func renderTabBar(active sidebarTab, width int) string {
 }
 
 // renderSidebarContent returns the body content for the active tab.
-func renderSidebarContent(tab sidebarTab, bookDir string, cfg *config.BookConfig, actions []sidebarAction) string {
+func renderSidebarContent(tab sidebarTab, bookDir string, cfg *config.BookConfig, actions []SidebarAction) string {
 	switch tab {
 	case tabActions:
 		return renderActionsTab(actions)
@@ -80,13 +88,15 @@ func renderSidebarContent(tab sidebarTab, bookDir string, cfg *config.BookConfig
 	}
 }
 
-func renderActionsTab(actions []sidebarAction) string {
+func renderActionsTab(actions []SidebarAction) string {
 	var sb strings.Builder
 	sb.WriteString(sectionHeader.Render("ACTIONS") + "\n\n")
+	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(theme.ColorAccent)
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
 	for _, a := range actions {
 		line := fmt.Sprintf("%s  %s",
-			bvSidebarKeyStyle.Render(a.key),
-			bvSidebarLabelStyle.Render(a.label),
+			keyStyle.Render(a.Key),
+			labelStyle.Render(a.Label),
 		)
 		sb.WriteString(" " + line + "\n")
 	}
@@ -151,6 +161,14 @@ func renderStatsTab(bookDir string, cfg *config.BookConfig) string {
 	var sb strings.Builder
 	sb.WriteString(sectionHeader.Render("STATS") + "\n\n")
 
+	// Default word count targets when rules are nil or unconfigured
+	var wcTarget, wcMin, wcMax int
+	if rules != nil && rules.WordCount.Target > 0 {
+		wcTarget = rules.WordCount.Target
+		wcMin = rules.WordCount.Min
+		wcMax = rules.WordCount.Max
+	}
+
 	var total int
 	for _, ch := range cfg.Chapters {
 		path := filepath.Join(bookDir, "chapters", ch.File)
@@ -162,9 +180,9 @@ func renderStatsTab(bookDir string, cfg *config.BookConfig) string {
 
 		p := wordcount.Progress{
 			Words:  wc,
-			Target: rules.WordCount.Target,
-			Min:    rules.WordCount.Min,
-			Max:    rules.WordCount.Max,
+			Target: wcTarget,
+			Min:    wcMin,
+			Max:    wcMax,
 		}
 
 		label := fmt.Sprintf("Ch%02d", ch.Number)
@@ -187,8 +205,8 @@ func renderStatsTab(bookDir string, cfg *config.BookConfig) string {
 	if len(cfg.Chapters) > 0 {
 		sb.WriteString("\n")
 		sb.WriteString(noteItemStyle.Render(fmt.Sprintf(" Total: %dw", total)) + "\n")
-		if rules.WordCount.Target > 0 {
-			goal := rules.WordCount.Target * len(cfg.Chapters)
+		if wcTarget > 0 {
+			goal := wcTarget * len(cfg.Chapters)
 			sb.WriteString(noteItemStyle.Faint(true).Render(fmt.Sprintf(" Goal:  %dw", goal)) + "\n")
 		}
 	}

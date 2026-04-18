@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/llm"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/pkg/llm"
 	"github.com/amr/naqb/internal/tui"
 )
 
@@ -19,9 +19,22 @@ func ChatCmd() *cobra.Command {
 	var providerFlag string
 
 	cmd := &cobra.Command{
-		Use:   "chat",
-		Short: "Open an interactive chat REPL for book editing (Claude Opus)",
+		Use:     "chat",
+		Aliases: []string{"c"},
+		Short:   "Open an interactive chat REPL for book editing (Claude Opus)",
+		Long: `Open an interactive chat session with the LLM for book editing.
+
+The LLM is given full context about your book (title, synopsis, chapter
+structure) and can help refine prose, brainstorm ideas, check consistency,
+or rewrite sections. Optionally focus on a specific chapter with --chapter.`,
+		Example: `  nqb chat
+  nqb chat --chapter 3
+  nqb c -c 5 --provider anthropic`,
+		GroupID: "writing",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := RunPreflight("chat"); err != nil {
+				return err
+			}
 			bookDir, err := config.FindBookRoot()
 			if err != nil {
 				return err

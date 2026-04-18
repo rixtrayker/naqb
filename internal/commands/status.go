@@ -8,15 +8,24 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/wordcount"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/pkg/wordcount"
 )
 
 // StatusCmd returns the `book status` command.
 func StatusCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "status",
-		Short: "Show chapter progress, git status, and last QA summary",
+		Use:     "status",
+		Aliases: []string{"st", "info"},
+		Short:   "Show chapter progress, git status, and last QA summary",
+		Long: `Display a summary of the current book project.
+
+Shows chapter completion status with word count progress bars, recent
+git commits, and any uncommitted changes. Run from a book directory
+or any subdirectory containing book.yaml.`,
+		Example: `  nqb status
+  nqb st`,
+		GroupID: "publishing",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bookDir, err := config.FindBookRoot()
 			if err != nil {

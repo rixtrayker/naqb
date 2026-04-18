@@ -21,12 +21,12 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/amr/naqb/internal/agents"
-	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/pkg/agents"
+	"github.com/amr/naqb/pkg/config"
 	"github.com/amr/naqb/internal/exporter"
-	"github.com/amr/naqb/internal/llm"
-	"github.com/amr/naqb/internal/research"
-	"github.com/amr/naqb/internal/wordcount"
+	"github.com/amr/naqb/pkg/llm"
+	"github.com/amr/naqb/pkg/research"
+	"github.com/amr/naqb/pkg/wordcount"
 )
 
 // New creates and configures the nqb MCP server.
@@ -169,7 +169,10 @@ func contextHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		return mcp.NewToolResultErrorFromErr("building context", err), nil
 	}
 
-	data, _ := os.ReadFile(path)
+	data, err2 := os.ReadFile(path)
+	if err2 != nil {
+		return mcp.NewToolResultErrorFromErr("reading context file", err2), nil
+	}
 	return mcp.NewToolResultText(fmt.Sprintf("Context written to %s\n\n%s", path, string(data))), nil
 }
 

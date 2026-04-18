@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/agents"
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/log"
-	"github.com/amr/naqb/internal/search"
-	"github.com/amr/naqb/internal/tui"
+	"github.com/amr/naqb/pkg/agents"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/pkg/log"
+	"github.com/amr/naqb/pkg/search"
+	"github.com/amr/naqb/internal/tui/components"
 )
 
 // WriteCmd returns the `book write` command.
@@ -21,11 +21,27 @@ func WriteCmd() *cobra.Command {
 	var providerFlag string
 
 	cmd := &cobra.Command{
-		Use:   "write",
-		Short: "Write a chapter using Claude Sonnet (with spinner)",
+		Use:     "write",
+		Aliases: []string{"w"},
+		Short:   "Write a chapter using Claude Sonnet (with spinner)",
+		Long: `Generate a chapter draft using the configured LLM provider.
+
+Reads the book outline, context files, and research notes, then writes a
+complete chapter draft to chapters/ch-XX.md. The chapter is automatically
+indexed into the local vector store after writing.
+
+Use --stream to watch tokens arrive in real time instead of the spinner.`,
+		Example: `  nqb write --chapter 3
+  nqb write -c 3 --stream
+  nqb write -c 1 --provider anthropic
+  nqb w -c 5`,
+		GroupID: "writing",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if chapterNum <= 0 {
 				return fmt.Errorf("specify --chapter N")
+			}
+			if err := RunPreflight("write"); err != nil {
+				return err
 			}
 
 			bookDir, err := config.FindBookRoot()
@@ -63,7 +79,7 @@ func WriteCmd() *cobra.Command {
 			// Spinner mode (default)
 			label := fmt.Sprintf("Writing Chapter %d: %s", chapterNum, chapterTitle(cfg, chapterNum))
 			var path string
-			err = tui.RunWithSpinner(label, func() error {
+			err = components.RunWithSpinner(label, func() error {
 				var writeErr error
 				path, writeErr = agents.WriteChapter(ctx, client, bookDir, cfg, chapterNum, nil)
 				return writeErr

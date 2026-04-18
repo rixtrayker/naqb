@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/pkg/config"
 	"github.com/amr/naqb/internal/vault"
 )
 
@@ -18,6 +18,14 @@ func CompletionCmd(root *cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completion",
 		Short: "Generate shell completion scripts",
+		Long: `Generate shell completion scripts for bash, zsh, fish, or carapace.
+
+Install completions for your shell to get tab-completion for commands,
+flags, chapter numbers, and project names.`,
+		Example: `  nqb completion bash > ~/.bash_completion.d/nqb
+  nqb completion zsh > "${fpath[1]}/_nqb"
+  nqb completion fish > ~/.config/fish/completions/nqb.fish`,
+		GroupID: "utility",
 	}
 
 	cmd.AddCommand(
@@ -33,6 +41,10 @@ func completionBashCmd(root *cobra.Command) *cobra.Command {
 	return &cobra.Command{
 		Use:   "bash",
 		Short: "Generate bash completion script",
+		Long: `Generate a bash completion script. Source it in your .bashrc or
+.bash_profile to enable tab completion for nqb commands and flags.`,
+		Example: `  nqb completion bash > ~/.bash_completion.d/nqb
+  source <(nqb completion bash)`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return root.GenBashCompletion(os.Stdout)
 		},
@@ -43,6 +55,10 @@ func completionZshCmd(root *cobra.Command) *cobra.Command {
 	return &cobra.Command{
 		Use:   "zsh",
 		Short: "Generate zsh completion script",
+		Long: `Generate a zsh completion script. Place it in your fpath to enable
+tab completion for nqb commands and flags.`,
+		Example: `  nqb completion zsh > "${fpath[1]}/_nqb"
+  source <(nqb completion zsh)`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return root.GenZshCompletion(os.Stdout)
 		},
@@ -53,6 +69,9 @@ func completionFishCmd(root *cobra.Command) *cobra.Command {
 	return &cobra.Command{
 		Use:   "fish",
 		Short: "Generate fish completion script",
+		Long: `Generate a fish completion script. Place it in your fish completions
+directory to enable tab completion for nqb commands and flags.`,
+		Example: `  nqb completion fish > ~/.config/fish/completions/nqb.fish`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return root.GenFishCompletion(os.Stdout, true)
 		},
@@ -63,15 +82,18 @@ func completionCarapaceCmd(root *cobra.Command) *cobra.Command {
 	return &cobra.Command{
 		Use:   "carapace [shell]",
 		Short: "Generate carapace-sh completion spec",
-		Long: `Generate a carapace-sh completion spec for sbr.
+		Long: `Generate a carapace-sh completion spec for nqb.
 
 To install:
   1. Install carapace: https://carapace.sh
   2. Add to your shell config:
        export CARAPACE_BRIDGES='zsh,fish,bash'
        source <(carapace _carapace)
-  3. Register sbr:
+  3. Register nqb:
        nqb completion carapace zsh  # or fish, bash, etc.`,
+		Example: `  nqb completion carapace zsh
+  nqb completion carapace fish
+  nqb completion carapace bash`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			shell := "zsh"

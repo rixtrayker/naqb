@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/log"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/pkg/log"
 )
 
 // ConfigCmd returns the `book config` command.
@@ -18,8 +18,18 @@ func ConfigCmd() *cobra.Command {
 	var setKey bool
 
 	cmd := &cobra.Command{
-		Use:   "config",
-		Short: "Show or edit global book configuration",
+		Use:     "config",
+		Aliases: []string{"cfg"},
+		Short:   "Show or edit global book configuration",
+		Long: `Display or modify the global nqb configuration at ~/.naqb/config.yaml.
+
+Without flags, prints the current configuration including API keys (masked),
+providers, default model, and editor settings. Use --set-key to interactively
+set the Anthropic API key.`,
+		Example: `  nqb config
+  nqb config --set-key
+  nqb cfg`,
+		GroupID: "config",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.LoadGlobal()
 			if err != nil {

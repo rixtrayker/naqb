@@ -12,9 +12,9 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/pkg/config"
 	"github.com/amr/naqb/internal/gdocs"
-	"github.com/amr/naqb/internal/llm"
+	"github.com/amr/naqb/pkg/llm"
 	"github.com/amr/naqb/internal/tui"
 )
 
@@ -36,6 +36,9 @@ Wizard import types:
 
 Subcommands:
   gdoc   Import from a Google Doc (requires COMPOSIO_API_KEY)`,
+		Example: `  nqb import
+  nqb import gdoc --url https://docs.google.com/document/d/DOC_ID/edit`,
+		GroupID: "management",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runImportWizard()
 		},
@@ -266,8 +269,13 @@ Preserve all key ideas. Output ONLY the outline.`
 	// Backup existing outline
 	if _, err := os.Stat(outlinePath); err == nil {
 		backup := outlinePath + ".bak"
-		existing, _ := os.ReadFile(outlinePath)
-		_ = os.WriteFile(backup, existing, 0o644)
+		existing, readErr := os.ReadFile(outlinePath)
+		if readErr != nil {
+			return fmt.Errorf("importToOutline: reading existing outline for backup: %w", readErr)
+		}
+		if writeErr := os.WriteFile(backup, existing, 0o644); writeErr != nil {
+			return fmt.Errorf("importToOutline: writing backup: %w", writeErr)
+		}
 		fmt.Printf("  Backed up existing outline.md → outline.md.bak\n")
 	}
 
@@ -287,13 +295,13 @@ func importGDocCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gdoc",
 		Short: "Import a Google Doc into the book as outline or research note",
-		Long: `Fetches a Google Doc and imports its content into the book.
+		Long: `Fetch a Google Doc and import its content into the book.
 
-By default writes to research/ as a frontmatter-tagged note.
+By default writes to .naqb/research/ as a frontmatter-tagged note.
 Use --as-outline to overwrite outline.md instead.
 
-Examples:
-  nqb import gdoc --url https://docs.google.com/document/d/DOC_ID/edit
+Requires COMPOSIO_API_KEY (stored in macOS Keychain by 'nqb setup').`,
+		Example: `  nqb import gdoc --url https://docs.google.com/document/d/DOC_ID/edit
   nqb import gdoc --url https://docs.google.com/document/d/DOC_ID/edit --as-outline`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if url == "" {
@@ -345,7 +353,9 @@ Examples:
 				// Backup existing outline
 				if _, err := os.Stat(outPath); err == nil {
 					backup := filepath.Join(bookDir, "outline.md.bak")
-					_ = os.Rename(outPath, backup)
+					if renameErr := os.Rename(outPath, backup); renameErr != nil {
+						return fmt.Errorf("backing up outline.md: %w", renameErr)
+					}
 					fmt.Printf("  Existing outline.md backed up to outline.md.bak\n")
 				}
 				if err := os.WriteFile(outPath, []byte(content), 0o644); err != nil {
@@ -376,7 +386,6 @@ Examples:
 				return fmt.Errorf("writing note: %w", err)
 			}
 
-			_ = asNote
 			fmt.Printf("✓ Imported to .naqb/research/%s (%d bytes)\n", fname, len(content))
 			return nil
 		},

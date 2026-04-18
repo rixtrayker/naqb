@@ -8,10 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/agents"
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/log"
-	"github.com/amr/naqb/internal/pipeline"
+	"github.com/amr/naqb/pkg/agents"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/pkg/log"
+	"github.com/amr/naqb/pkg/pipeline"
 	"github.com/amr/naqb/internal/tui"
 	"github.com/amr/naqb/internal/vault"
 )
@@ -23,9 +23,23 @@ func InitCmd() *cobra.Command {
 	var inVault bool
 
 	cmd := &cobra.Command{
-		Use:   "init [directory]",
-		Short: "Initialize a new book project via LLM interview",
-		Args:  cobra.MaximumNArgs(1),
+		Use:     "init [directory]",
+		Aliases: []string{"i", "new"},
+		Short:   "Initialize a new book project via LLM interview",
+		Long: `Create a new book project via an interactive LLM-powered interview.
+
+The planner asks about your book's topic, audience, and scope, then generates
+a chapter outline and project structure. The result is a ready-to-write project
+with book.yaml, outline.md, and an empty chapters/ directory.
+
+By default the project is created in the current directory. Use --vault to
+place it inside your default vault, or --output to specify a custom path.`,
+		Example: `  nqb init
+  nqb init --vault
+  nqb init --output ~/Books/my-project
+  nqb init my-book-dir`,
+		GroupID: "writing",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				dir = args[0]
@@ -77,7 +91,12 @@ func runInitWithAnswersAt(answers agents.InterviewAnswers, dir string, noGit boo
 	}
 
 	log.Info("init start", "title", answers.Title, "dir", bookDir, "template", answers.Template, "language", answers.Language)
-	fmt.Printf("\nGenerating book plan with Claude Haiku...\n")
+
+	if err := RunPreflight("init"); err != nil {
+		return err
+	}
+
+	fmt.Printf("\nGenerating book plan...\n")
 
 	// Init stage uses a lightweight provider — defaults to global default.
 	// BookConfig doesn't exist yet so there's no per-book init provider to read.

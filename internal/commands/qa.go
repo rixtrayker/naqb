@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/agents"
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/tui"
+	"github.com/amr/naqb/pkg/agents"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/internal/tui/components"
 )
 
 // QACmd returns the `book qa` command.
@@ -21,19 +21,30 @@ func QACmd() *cobra.Command {
 	var runGap bool
 
 	cmd := &cobra.Command{
-		Use:   "qa",
-		Short: "Run QA checks on a chapter (deterministic + LLM)",
-		Long: `Runs quality checks on a written chapter:
+		Use:     "qa",
+		Aliases: []string{"check"},
+		Short:   "Run QA checks on a chapter (deterministic + LLM)",
+		Long: `Run quality assurance checks on a written chapter.
+
+Checks include:
   - Deterministic: heading hierarchy, code block tags, word count, callout syntax
   - LLM audit:     consistency, ADHD formatting, outline coverage, terminology
   - Conflict check: cross-chapter contradiction detection (--conflict)
   - Gap analysis:   outline-vs-content coverage check (--gap)
 
-Flags --conflict and --gap use the levels configured in config/rules.yaml.
-Pass --conflict=off or --gap=off to disable for this run.`,
+Results are appended to pipeline-report.md. Use --deterministic-only to skip
+the LLM audit when no API key is available.`,
+		Example: `  nqb qa --chapter 3
+  nqb qa -c 3 --deterministic-only
+  nqb qa -c 3 --conflict --gap
+  nqb check -c 1`,
+		GroupID: "quality",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if chapterNum <= 0 {
 				return fmt.Errorf("specify --chapter N")
+			}
+			if err := RunPreflight("qa"); err != nil {
+				return err
 			}
 
 			bookDir, err := config.FindBookRoot()
@@ -58,7 +69,7 @@ Pass --conflict=off or --gap=off to disable for this run.`,
 			// --- Standard QA ---
 			var result *agents.QAResult
 			label := fmt.Sprintf("Running QA on Chapter %d", chapterNum)
-			err = tui.RunWithSpinner(label, func() error {
+			err = components.RunWithSpinner(label, func() error {
 				var qaErr error
 				if deterministicOnly {
 					result, qaErr = agents.RunQA(ctx, nil, bookDir, cfg, chapterNum)
@@ -82,8 +93,14 @@ Pass --conflict=off or --gap=off to disable for this run.`,
 					fmt.Printf("  - %s\n", issue)
 				}
 			}
-			if !deterministicOnly && result.LLMReport != "" {
+			if deterministicOnly {
+				fmt.Printf("\nLLM audit: skipped (--deterministic-only)\n")
+			} else if clientErr != nil {
+				fmt.Printf("\nLLM audit: skipped (provider unavailable: %v)\n", clientErr)
+			} else if result.LLMReport != "" {
 				fmt.Printf("\nLLM Audit:\n%s\n", result.LLMReport)
+			} else {
+				fmt.Printf("\nLLM audit: no findings\n")
 			}
 			if err := agents.WriteQAReport(bookDir, result); err != nil {
 				fmt.Printf("(could not write QA report: %v)\n", err)

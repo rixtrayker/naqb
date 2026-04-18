@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/pkg/config"
 	"github.com/amr/naqb/internal/exporter"
-	"github.com/amr/naqb/internal/tui"
+	"github.com/amr/naqb/internal/tui/components"
 )
 
 // ExportCmd returns the `book export` command.
@@ -17,8 +17,19 @@ func ExportCmd() *cobra.Command {
 	var format string
 
 	cmd := &cobra.Command{
-		Use:   "export",
-		Short: "Export the book to PDF, EPUB, DOCX, or Web",
+		Use:     "export",
+		Aliases: []string{"exp"},
+		Short:   "Export the book to PDF, EPUB, DOCX, or Web",
+		Long: `Export the book to one or more output formats using pandoc.
+
+Supported formats: pdf (via XeLaTeX), epub, docx, web (static HTML).
+Use --format all to export to all formats at once. Requires pandoc to
+be installed; PDF also requires XeLaTeX.`,
+		Example: `  nqb export --format pdf
+  nqb export -f epub
+  nqb export -f all
+  nqb exp -f docx`,
+		GroupID: "publishing",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bookDir, err := config.FindBookRoot()
 			if err != nil {
@@ -34,10 +45,11 @@ func ExportCmd() *cobra.Command {
 				return fmt.Errorf("specify --format pdf|epub|docx|web|all")
 			}
 
+			var failures int
 			for _, f := range formats {
 				f := f
 				label := fmt.Sprintf("Exporting %s", strings.ToUpper(f))
-				err := tui.RunWithSpinner(label, func() error {
+				err := components.RunWithSpinner(label, func() error {
 					var outPath string
 					var exportErr error
 					switch f {
@@ -59,7 +71,11 @@ func ExportCmd() *cobra.Command {
 				}, os.Stdout)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "✗ %s export failed: %v\n", f, err)
+					failures++
 				}
+			}
+			if failures > 0 {
+				return fmt.Errorf("%d of %d exports failed", failures, len(formats))
 			}
 			return nil
 		},

@@ -13,7 +13,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 	gmhtml "github.com/yuin/goldmark/renderer/html"
 
-	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/pkg/config"
 )
 
 // WebExporter exports chapters to a static multi-page HTML site with sidebar

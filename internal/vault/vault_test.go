@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/pkg/config"
 )
 
 // newTestRegistry creates a Registry backed by a temp dir and overrides the

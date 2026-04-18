@@ -7,26 +7,33 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/agents"
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/llm"
+	"github.com/amr/naqb/pkg/agents"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/pkg/llm"
 )
 
 // ModelsCmd returns the `nqb models` command.
 func ModelsCmd() *cobra.Command {
 	var allTiers bool
 	cmd := &cobra.Command{
-		Use:   "models",
-		Short: "List available models, costs, and stage defaults",
+		Use:     "models",
+		Aliases: []string{"m"},
+		Short:   "List available models, costs, and stage defaults",
 		Long: `List all known models with pricing, context window, and speed.
+
+Shows the model table with per-million-token costs, context window sizes,
+and speed tiers. Also displays stage-to-model mapping and any book-level
+overrides from book.yaml.
 
 Pricing tiers (Anthropic direct API):
   standard      Default rate (up to 200K context)
   long-context  Premium rate when input exceeds 200K tokens (beta)
   batch         50% off for async jobs via Batches API
-  fast          6× standard rate for latency-sensitive workloads
-
-Use --all-tiers to see all four pricing tiers per model.`,
+  fast          6x standard rate for latency-sensitive workloads`,
+		Example: `  nqb models
+  nqb models --all-tiers
+  nqb m`,
+		GroupID: "config",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runModels(allTiers)
 		},

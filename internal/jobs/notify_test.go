@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/amr/naqb/internal/llm"
+	"github.com/amr/naqb/pkg/llm"
 )
 
 func setTestNotifyDir(t *testing.T) {

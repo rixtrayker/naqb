@@ -12,15 +12,29 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/log"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/pkg/log"
 )
 
 // DefaultVaultName is the name of the built-in default vault.
 const DefaultVaultName = "default"
 
-// DefaultVaultPath returns the default book storage location inside ~/.naqb.
+// DefaultVaultPath returns the preferred default book storage location.
+// On macOS/Linux it uses ~/Documents/naqb-books when ~/Documents exists;
+// otherwise falls back to ~/.naqb/projects.
 func DefaultVaultPath() string {
+	if home, err := os.UserHomeDir(); err == nil {
+		docs := filepath.Join(home, "Documents")
+		if info, err := os.Stat(docs); err == nil && info.IsDir() {
+			return filepath.Join(docs, "naqb-books")
+		}
+	}
+	return filepath.Join(config.NaqbDir(), "projects")
+}
+
+// FallbackVaultPath returns the legacy vault path inside ~/.naqb.
+// Used when the user explicitly wants to keep books alongside the config.
+func FallbackVaultPath() string {
 	return filepath.Join(config.NaqbDir(), "projects")
 }
 
@@ -67,8 +81,11 @@ func LoadRegistry() (*Registry, error) {
 		return nil, fmt.Errorf("reading vault registry: %w", err)
 	}
 	if err := yaml.Unmarshal(data, reg); err != nil {
-		log.Error("failed to parse vault registry", "path", path, "err", err)
-		return nil, fmt.Errorf("parsing vault registry: %w", err)
+		log.Warn("corrupt vault registry, resetting to defaults", "path", path, "err", err)
+		reg.Vaults = []VaultEntry{
+			{Name: DefaultVaultName, Path: DefaultVaultPath()},
+		}
+		return reg, nil
 	}
 	log.Debug("vault registry loaded", "vaults", len(reg.Vaults))
 	// Always ensure default vault exists in list
@@ -275,6 +292,36 @@ func FindProject(name string) (*Project, error) {
 }
 
 // EnsureDefaultVault creates the default vault directory if it doesn't exist.
+// It also updates the registry entry so the default vault points to the
+// path that was chosen during setup (config.DefaultVaultPath override).
 func EnsureDefaultVault() error {
-	return os.MkdirAll(DefaultVaultPath(), 0o750)
+	path := DefaultVaultPath()
+
+	// Check if the user configured a custom vault path in global config.
+	if cfg, err := config.LoadGlobal(); err == nil && cfg.DefaultVaultPath != "" {
+		path = cfg.DefaultVaultPath
+	}
+
+	if err := os.MkdirAll(path, 0o750); err != nil {
+		return err
+	}
+
+	// Keep the registry entry in sync with the chosen path.
+	reg, err := LoadRegistry()
+	if err != nil {
+		return err
+	}
+	changed := false
+	for i, v := range reg.Vaults {
+		if v.Name == DefaultVaultName && v.Path != path {
+			reg.Vaults[i].Path = path
+			changed = true
+		}
+	}
+	if changed {
+		if err := SaveRegistry(reg); err != nil {
+			log.Warn("vault: registry save failed during sync", "err", err)
+		}
+	}
+	return nil
 }

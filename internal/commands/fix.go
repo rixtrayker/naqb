@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/agents"
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/tui"
+	"github.com/amr/naqb/pkg/agents"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/internal/tui/components"
 )
 
 // FixCmd returns the `nqb fix` command.
@@ -25,25 +25,31 @@ func FixCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "fix",
-		Short: "Rewrite a chapter to fix QA issues, coverage gaps, or style inconsistencies",
-		Long: `nqb fix rewrites a broken or thin chapter using QA issues, gap analysis,
-or style markers as correction context.
+		Use:     "fix",
+		Aliases: []string{"f"},
+		Short:   "Rewrite a chapter to fix QA issues, coverage gaps, or style inconsistencies",
+		Long: `Rewrite a chapter using QA issues, gap analysis, or style markers as
+correction context. The original chapter is backed up before rewriting.
 
 Modes:
-  --qa        (default) read pipeline-report.md issues → rewrite
-  --gap       run gap analysis vs outline → rewrite
-  --style     compare adjacent chapters for style consistency → rewrite
+  --qa        (default) read pipeline-report.md issues and rewrite
+  --gap       run gap analysis vs outline and rewrite
+  --style     compare adjacent chapters for style consistency and rewrite
   --refresh   rebuild context + re-run QA only (no rewrite)
-
-Examples:
-  nqb fix --chapter 3
-  nqb fix --chapter 3 --gap
-  nqb fix --chapter 3 --style
-  nqb fix --chapter 3 --refresh`,
+  --smart     classify issue complexity and route to appropriate model tier`,
+		Example: `  nqb fix --chapter 3
+  nqb fix -c 3 --gap
+  nqb fix -c 3 --style --smart
+  nqb fix -c 3 --refresh
+  nqb f -c 5`,
+		GroupID: "writing",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if chapterNum <= 0 {
 				return fmt.Errorf("--chapter is required and must be a positive integer")
+			}
+
+			if err := RunPreflight("fix"); err != nil {
+				return err
 			}
 
 			bookDir, err := config.FindBookRoot()
@@ -74,7 +80,7 @@ Examples:
 			var result *agents.FixResult
 			label := fmt.Sprintf("fix chapter %d [%s]", chapterNum, mode)
 
-			err = tui.RunWithSpinner(label, func() error {
+			err = components.RunWithSpinner(label, func() error {
 				ctx := context.Background()
 
 				// --smart: classify issue complexity and route to appropriate model tier

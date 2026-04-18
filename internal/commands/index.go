@@ -9,8 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/search"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/internal/keycheck"
+	"github.com/amr/naqb/pkg/search"
 )
 
 // IndexCmd returns the `nqb index` command.
@@ -18,14 +19,23 @@ func IndexCmd() *cobra.Command {
 	var reindex bool
 
 	cmd := &cobra.Command{
-		Use:   "index",
-		Short: "Index chapters and research notes into the local vector store",
-		Long: `Indexes all chapter files and research notes into the local vector store
+		Use:     "index",
+		Aliases: []string{"idx"},
+		Short:   "Index chapters and research notes into the local vector store",
+		GroupID: "quality",
+		Example: `  nqb index
+  nqb index --reindex
+  nqb idx`,
+		Long: `Index all chapter files and research notes into the local vector store
 (.naqb/vectors/). Enables semantic search when building chapter contexts.
 
 Requires OPENAI_API_KEY or MISTRAL_API_KEY for semantic (embedding-based)
 indexing. Without a key, documents are stored for keyword-only retrieval.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Soft preflight: index works for keyword-only without embedding keys
+			if pf := keycheck.CheckCommand("index"); !pf.OK {
+				fmt.Fprintf(os.Stderr, "Note: no embedding key found; indexing for keyword retrieval only.\n")
+			}
 			bookDir, err := config.FindBookRoot()
 			if err != nil {
 				return err
@@ -83,9 +93,11 @@ indexing. Without a key, documents are stored for keyword-only retrieval.`,
 				noteIndexed += n
 			}
 
+			if reindex {
+				fmt.Println("\n(--reindex: all documents re-indexed regardless of prior state)")
+			}
 			fmt.Printf("\n✓ Done: %d chapters indexed (%d skipped), %d notes indexed.\n",
 				chapIndexed, chapSkipped, noteIndexed)
-			_ = reindex
 			return nil
 		},
 	}

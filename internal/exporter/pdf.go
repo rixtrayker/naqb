@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/pkg/config"
 )
 
 // PDFExporter exports chapters to PDF using pandoc + xelatex.
@@ -50,10 +50,14 @@ func (PDFExporter) Export(bookDir string, cfg *config.BookConfig) (string, error
 	)
 
 	if cfg.Language == "ar" {
+		headerPath, err := writeRTLHeader(bookDir, fontArabic)
+		if err != nil {
+			return "", err
+		}
 		args = append(args,
 			"-V", "dir=rtl",
 			"--variable", "lang=ar",
-			"--include-in-header="+writeRTLHeader(bookDir, fontArabic),
+			"--include-in-header="+headerPath,
 		)
 	}
 
@@ -68,14 +72,18 @@ func ExportPDF(bookDir string, cfg *config.BookConfig) (string, error) {
 	return (PDFExporter{}).Export(bookDir, cfg)
 }
 
-func writeRTLHeader(bookDir, fontArabic string) string {
+func writeRTLHeader(bookDir, fontArabic string) (string, error) {
 	header := fmt.Sprintf(`\usepackage{polyglossia}
 \setmainlanguage{arabic}
 \setotherlanguage{english}
 \newfontfamily\arabicfont[Script=Arabic]{%s}
 `, fontArabic)
 	headerPath := filepath.Join(bookDir, "output", "rtl-header.tex")
-	_ = os.MkdirAll(filepath.Dir(headerPath), 0o750)
-	_ = os.WriteFile(headerPath, []byte(header), 0o644)
-	return headerPath
+	if err := os.MkdirAll(filepath.Dir(headerPath), 0o750); err != nil {
+		return "", fmt.Errorf("creating RTL header dir: %w", err)
+	}
+	if err := os.WriteFile(headerPath, []byte(header), 0o644); err != nil {
+		return "", fmt.Errorf("writing RTL header: %w", err)
+	}
+	return headerPath, nil
 }

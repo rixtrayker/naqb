@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/pkg/config"
 	"github.com/amr/naqb/internal/exporter"
 	"github.com/amr/naqb/internal/watcher"
 )
@@ -20,6 +20,15 @@ func WatchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "watch",
 		Short: "Watch for file changes and auto-rebuild exports",
+		Long: `Watch the book directory for file changes and automatically rebuild
+the specified export format. Useful for live-previewing while editing.
+
+Watches chapters/, outline.md, and config/ for changes. Defaults to
+web format for fast rebuilds.`,
+		Example: `  nqb watch
+  nqb watch --format pdf
+  nqb watch -f epub`,
+		GroupID: "publishing",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bookDir, err := config.FindBookRoot()
 			if err != nil {
@@ -65,7 +74,7 @@ func WatchCmd() *cobra.Command {
 				return fmt.Errorf("unknown format: %s", format)
 			}
 
-			return watcher.Watch(bookDir, rebuild, os.Stdout)
+			return watcher.Watch(cmd.Context(), bookDir, rebuild, os.Stdout)
 		},
 	}
 

@@ -8,15 +8,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/config"
+	"github.com/amr/naqb/pkg/config"
 	"github.com/amr/naqb/internal/gdocs"
 )
 
 // SyncCmd returns the `nqb sync` command with subcommands.
 func SyncCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "sync",
-		Short: "Sync book content with external services",
+		Use:     "sync",
+		Short:   "Sync book content with external services",
+		GroupID: "management",
 	}
 	cmd.AddCommand(syncGDocsCmd())
 	return cmd
@@ -37,6 +38,8 @@ Each chapter becomes a top-level heading section. Editors can leave
 comments and suggestions in Google's native UI without touching git.
 
 Requires COMPOSIO_API_KEY (stored in macOS Keychain by nqb setup).`,
+		Example: `  nqb sync gdocs
+  nqb sync gdocs --force-new`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bookDir, err := config.FindBookRoot()
 			if err != nil {

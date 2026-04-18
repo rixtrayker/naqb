@@ -7,8 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/amr/naqb/internal/config"
-	"github.com/amr/naqb/internal/research"
+	"github.com/amr/naqb/pkg/config"
+	"github.com/amr/naqb/internal/keycheck"
+	"github.com/amr/naqb/pkg/research"
 )
 
 // ResearchCmd returns the `nqb research` command.
@@ -17,11 +18,14 @@ func ResearchCmd() *cobra.Command {
 	var providerFlag string
 	var all bool
 	var deep bool
+	var fromYouTube string
 
 	cmd := &cobra.Command{
-		Use:   "research",
-		Short: "Run Scout→Explorer→Scribe research pipeline for a chapter",
-		Long: `Runs the automated research pipeline for a chapter:
+		Use:     "research",
+		Aliases: []string{"res"},
+		Short:   "Run Scout→Explorer→Scribe research pipeline for a chapter",
+		GroupID: "quality",
+		Long: `Run the automated research pipeline for a chapter.
   1. Scout   — LLM generates focused search queries
   2. Explorer — fetches results from the configured search API
   3. Scribe  — LLM synthesises atomic notes into .naqb/research/
@@ -31,8 +35,20 @@ in config/rules.yaml to enable web search. Without a search key, Scout
 still generates queries but Explorer is skipped.
 
 Use --deep to activate Gemini Search grounding (requires GEMINI_API_KEY).
-Deep research produces citation-backed synthesis instead of raw snippets.`,
+Deep research produces citation-backed synthesis instead of raw snippets.
+
+Use --from-youtube to import a YouTube transcript as research notes.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := RunPreflight("research"); err != nil {
+				return err
+			}
+			// --deep: soft warn if GEMINI_API_KEY is missing (fallback exists).
+			if deep {
+				if result := keycheck.CheckCommand("research-deep"); !result.OK {
+					fmt.Fprintf(os.Stderr, "  Note: GEMINI_API_KEY not found — --deep will fall back to configured provider.\n")
+				}
+			}
+
 			bookDir, err := config.FindBookRoot()
 			if err != nil {
 				return err
@@ -55,9 +71,8 @@ Deep research produces citation-backed synthesis instead of raw snippets.`,
 				if isDeep {
 					fmt.Println("  Deep research mode: Gemini Search grounding active.")
 					rules.Research.SearchProvider = "gemini"
-				} else {
-					fmt.Println("  Note: GEMINI_API_KEY not found — falling back to configured provider.")
 				}
+				// else: preflight already printed the fallback note above.
 			}
 
 			client, err := providerFor(providerFlag, cfg.LLM.WriteProvider)
@@ -65,6 +80,28 @@ Deep research produces citation-backed synthesis instead of raw snippets.`,
 				return err
 			}
 			ctx := context.Background()
+
+			if fromYouTube != "" {
+				if chapterNum <= 0 {
+					return fmt.Errorf("specify --chapter N when using --from-youtube")
+				}
+				title := chapterTitle(cfg, chapterNum)
+				fmt.Printf("Research — Chapter %d: %s (from YouTube)\n", chapterNum, title)
+				result, err := research.RunYouTubeResearch(ctx, client, bookDir, cfg, chapterNum, fromYouTube, os.Stdout)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("\n✓ YouTube research complete: %d notes\n", len(result.Notes))
+				if len(result.Notes) > 0 {
+					fmt.Printf("  Notes saved to .naqb/research/\n")
+					for _, n := range result.Notes {
+						if n.Filename != "" {
+							fmt.Printf("  • %s\n", n.Filename)
+						}
+					}
+				}
+				return nil
+			}
 
 			if all {
 				for _, ch := range cfg.Chapters {
@@ -110,5 +147,6 @@ Deep research produces citation-backed synthesis instead of raw snippets.`,
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "Run research for all chapters")
 	cmd.Flags().StringVarP(&providerFlag, "provider", "p", "", "Named LLM provider (overrides book.yaml)")
 	cmd.Flags().BoolVar(&deep, "deep", false, "Use Gemini Search grounding for deep research (requires GEMINI_API_KEY)")
+	cmd.Flags().StringVar(&fromYouTube, "from-youtube", "", "YouTube URL or video ID to import transcript from")
 	return cmd
 }
