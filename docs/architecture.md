@@ -2,50 +2,53 @@
 
 ## Overview
 
-`nqb` is a single Go binary. All functionality lives in `internal/` packages;
-`cmd/nqb/main.go` is just a Cobra root that wires them together.
+`nqb` is built as a **Go workspace** (`go.work`) with a root module and 11 standalone
+`pkg/*` modules. The root `go.mod` uses `replace` directives to wire the local
+`pkg/*` packages, and three binaries live under `cmd/`.
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                         nqb (binary)                             │
-│                                                                  │
-│  cmd/nqb/main.go   ← cobra root + dynamic completions           │
-│                                                                  │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐          │
-│  │  commands/   │  │    tui/       │  │   vault/     │          │
-│  │  (CLI cmds)  │  │  (Bubble Tea) │  │  (registry)  │          │
-│  └──────┬───────┘  └──────┬────────┘  └──────────────┘          │
-│         │                 │                                      │
-│  ┌──────▼─────────────────▼────────────────────────────────┐    │
-│  │                     agent/                               │    │
-│  │  fantasy loop · 8 tools · EpistemicState injection       │    │
-│  └─────────────────────────┬───────────────────────────────┘    │
-│                             │                                    │
-│  ┌──────────┐  ┌────────────▼───┐  ┌──────────────────────┐    │
-│  │   llm/   │  │  pipeline/     │  │   exporter/          │    │
-│  │(providers)│  │ legacy + DAG + │  │ (pandoc wrappers)    │    │
-│  └──────────┘  │ gate + debt    │  └──────────────────────┘    │
-│                └────────────────┘                               │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Retrieval Stack                                          │   │
-│  │  store/  ← VectorStore + KeywordStore (Bleve) + Hybrid   │   │
-│  │  searchutil/ · chunker/ · embedding/ · rerank/           │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│  ┌─────────────────────────────────┐  ┌──────────────────────┐  │
-│  │  knowledge/                     │  │  context/            │  │
-│  │  Claim + Graph + EpistemicState │  │  Stack + Braid +     │  │
-│  │  + Ingestion pipeline           │  │  Arabic layers       │  │
-│  └─────────────────────────────────┘  └──────────────────────┘  │
-│                                                                  │
-│  ┌──────────┐  ┌───────────────┐  ┌─────────────────────────┐  │
-│  │  style/  │  │   db/         │  │   jobs/                 │  │
-│  │ StyleImage│  │  SQLite+goose │  │  async queue+worker     │  │
-│  │ extract/ │  │  8 migrations │  │                         │  │
-│  │ blend/   │  └───────────────┘  └─────────────────────────┘  │
-│  └──────────┘                                                    │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           go.work (workspace)                            │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐ │
+│  │                         cmd/ (3 binaries)                           │ │
+│  │  ┌─────────────┐  ┌─────────────────┐  ┌─────────────────┐         │ │
+│  │  │   cmd/nqb   │  │ cmd/naqb-style  │  │  cmd/nqb-mcp    │         │ │
+│  │  │  (main CLI) │  │ (style engine)  │  │  (MCP server)   │         │ │
+│  │  └──────┬──────┘  └─────────────────┘  └─────────────────┘         │ │
+│  └─────────┼───────────────────────────────────────────────────────────┘ │
+│            │                                                             │
+│            ▼                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐ │
+│  │              root go.mod (replace directives → pkg/*)               │ │
+│  └─────────────────────────────────────────────────────────────────────┘ │
+│            │                                                             │
+│     ┌──────┴───────────────────────────────────────────────────────┐     │
+│     ▼                                                              ▼     │
+│ ┌──────────┐                                          ┌──────────────┐  │
+│ │   pkg/   │                                          │   internal/  │  │
+│ │ modules  │                                          │              │  │
+│ │          │                                          │  commands/   │  │
+│ │ agent    │                                          │  tui/        │  │
+│ │ agents   │                                          │  vault/      │  │
+│ │ booktools│                                          │  exporter/   │  │
+│ │ config   │                                          │  store/      │  │
+│ │ lm       │                                          │  knowledge/  │  │
+│ │ log      │                                          │  context/    │  │
+│ │ pipeline │                                          │  style/      │  │
+│ │ research │                                          │  db/         │  │
+│ │ runtime  │                                          │  jobs/       │  │
+│ │ search   │                                          │  chunker/    │  │
+│ │ wordcount│                                          │  embedding/  │  │
+│ │ youtube  │                                          │  rerank/     │  │
+│ └──────────┘                                          │  searchutil/ │  │
+│                                                       │  mcpserver/  │  │
+│                                                       │  gdocs/      │  │
+│                                                       │  watcher/    │  │
+│                                                       │  changelog/  │  │
+│                                                       │  keycheck/   │  │
+│                                                       └──────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -55,23 +58,36 @@
 ### `cmd/nqb`
 Entry point. `nqb` alone → TUI home. `nqb .` → open current dir. Registers all subcommands.
 
+### `cmd/naqb-style`
+Standalone CLI for the style engine:
+```
+naqb-style extract <files...> --output <name>
+naqb-style apply <style> --to <chapter>
+naqb-style blend <style-a> <style-b> --weight 0.5
+naqb-style diff <style-a> <style-b>
+naqb-style list | show <name> | fork <name> | fingerprint <name> | delete <name>
+```
+
+### `cmd/nqb-mcp`
+MCP server binary exposing naqb capabilities via the Model Context Protocol.
+
 ### `internal/vault`
 Obsidian-style vault registry stored at `~/.naqb/vault.yaml`.
 Scans vault directories for subdirs containing `book.yaml`.
 `ListProjects()` returns all projects sorted by modification time.
 
-### `internal/config`
+### `pkg/config`
 - `GlobalConfig` — API key, loaded from `~/.naqb/config.yaml` or `ANTHROPIC_API_KEY`
 - `BookConfig` — per-project `book.yaml` CRUD
 - `Template` — three built-in templates: `arabic-research`, `cs-book`, `general`
 
-### `internal/llm`
+### `pkg/lm`
 Multi-provider LLM client with streaming support:
 - `OpenRouterProvider` — OpenAI-compatible (default, MiniMax M2.5)
 - `AnthropicProvider` — native Anthropic SDK
 - `BedrockProvider` — AWS Bedrock Converse API
 
-### `internal/agents`
+### `pkg/agents`
 The four pipeline stages, each independently callable:
 
 | File | Stage | Input | Output |
@@ -81,8 +97,15 @@ The four pipeline stages, each independently callable:
 | `writer.go` | 2 — Write | context file | `chapters/ch-NN.md` |
 | `qa.go` | 3 — QA | chapter file | `QAResult` + `pipeline-report.md` |
 
-### `internal/pipeline`
+### `pkg/pipeline`
 `RunChapterPipeline` orchestrates stages 1→2→3 and calls `GitCommit` between each.
+
+Also contains the DAG pipeline engine:
+- `dag.go` — `DAG` with topological sort → parallel batches; 8 `StageType`s (CONTEXT/WRITE/QA/CONFLICT/GAP/RESEARCH/SYNTHESIZE/CUSTOM)
+- `executor.go` — `RunDAG(ctx, dag, input, emit)`: executes batches in parallel goroutines
+- `gate.go` — `GateManager`: `HUMAN_GATE` writes `gate_blocked` job to DB; `ResumeGate` unblocks
+- `debt.go` — `ContextDebt` accumulator: tracks token budget violations (FAIL/DEGRADE/SUBSTITUTE/HUMAN_GATE)
+- `template.go` — load built-in templates (standard/thorough/qa-only) or custom YAML from `~/.naqb/templates/`
 
 ### `internal/exporter`
 Pandoc wrappers for PDF (XeLaTeX + polyglossia for Arabic RTL), EPUB, DOCX, and static HTML.
@@ -101,7 +124,7 @@ All Bubble Tea screens:
 | `keys.go` | Central keybinding definitions |
 | `spinner.go` | Spinner wrapper for long tasks |
 
-### `internal/research`
+### `pkg/research`
 Scout→Explorer→Scribe research pipeline:
 - `scout.go` — generates search queries from chapter outline
 - `explorer.go` — fetches pages via Jina Reader (`r.jina.ai`), falls back to direct HTTP
@@ -147,7 +170,7 @@ Store layer interfaces + implementations:
 - `util/merge.go` — `MergeBySignature(a, b []Result) []Result`
 - `util/mmr.go` — `ApplyMMR(results []Result, lambda float64, k int) []Result`
 
-### `internal/search`
+### `pkg/search`
 Local vector store (routing layer):
 - `Open(bookDir)` — creates `.naqb/vectors/` and initialises the collection
 - `IndexChapter` / `IndexResearchNote` / `QueryResearch` / `QueryChapters` — delegate to HybridStore
@@ -167,20 +190,30 @@ Knowledge graph and epistemic state:
 - `epistemic.go` — `EpistemicState` JSON blob in SQLite; `Load/Save/Accumulate/Summary`; state injected into agent task prompts
 - `ingestion.go` — `IngestDocument`: chunk → embed → upsert VectorStore + index KeywordStore
 
-### `internal/agent`
+### `pkg/agent`
 charm.land/fantasy agent loop for agentic chapter writing:
-- `agent.New(provider, modelID, db, bookDir, cfg)` → `agent.Run(ctx, task, sessionID, onDelta)`
+- `agent.New(provider, modelID, sessionStore, epistemicStore, bookDir, cfg)` → `agent.Run(ctx, task, sessionID, onDelta)`
+- Decoupled from `db`/`knowledge` via `SessionStore` and `EpistemicStore` interfaces
 - 8 tools: `read_file`, `write_file`, `search_research`, `run_qa`, `web_fetch`, `list_chapters`, `knowledge_search`, `grep_chunks`
 - `provider.go` — builds `fantasy.Provider` from `ProviderConfig`
-- `context.go` — `BuildChapterTask(bookDir, cfg, chapterNum, db...)` injects `EpistemicState.Summary()` when DB provided
+- `context.go` — `BuildChapterTask(bookDir, cfg, chapterNum, stores...)` injects `EpistemicState.Summary()` when store provided
 
-### `internal/pipeline` (extended)
-DAG pipeline engine (in addition to existing `RunChapterPipeline`):
-- `dag.go` — `DAG` with topological sort → parallel batches; 8 `StageType`s (CONTEXT/WRITE/QA/CONFLICT/GAP/RESEARCH/SYNTHESIZE/CUSTOM)
-- `executor.go` — `RunDAG(ctx, dag, input, emit)`: executes batches in parallel goroutines
-- `gate.go` — `GateManager`: `HUMAN_GATE` writes `gate_blocked` job to DB; `ResumeGate` unblocks
-- `debt.go` — `ContextDebt` accumulator: tracks token budget violations (FAIL/DEGRADE/SUBSTITUTE/HUMAN_GATE)
-- `template.go` — load built-in templates (standard/thorough/qa-only) or custom YAML from `~/.naqb/templates/`
+### `pkg/runtime`
+LangGraph-style execution engine:
+- `state_graph.go` — `StateGraph`, `CompiledGraph` with node/edge wiring and checkpointing hooks
+- `invoke.go` — `Invoke(ctx, graph, input)` sequential execution; `InvokeParallel(ctx, graphs, inputs)` for concurrent DAG runs
+- `checkpointer.go` — `DBCheckpointer`: persists graph state to SQLite for resumable workflows
+- `runnable.go` — `Runnable` interface: the common abstraction for nodes, chains, and tools
+
+### `pkg/booktools`
+Concrete tool implementations used by the agent loop:
+- `file.go` — `read_file`, `write_file`
+- `research.go` — `search_research`, `web_fetch`
+- `knowledge.go` — `knowledge_search`
+- `qa.go` — `run_qa`
+- `spawn.go` — `list_chapters`, `grep_chunks`
+- `adapter.go` — wraps tools into `runtime.Tool` interface
+- `plan_execute.go` — plan-then-execute tool orchestration
 
 ### `internal/context`
 Context stacks and analytical braiding:
@@ -198,25 +231,21 @@ Style image engine:
 - `blend.go` — `Blend`, `Fork`, `Diff`, `Fingerprint` (SHA-256 of canonical JSON)
 - `registry.go` — YAML-backed registry at `~/.naqb/styles/`
 
-### `cmd/naqb-style`
-Standalone CLI for the style engine:
-```
-naqb-style extract <files...> --output <name>
-naqb-style apply <style> --to <chapter>
-naqb-style blend <style-a> <style-b> --weight 0.5
-naqb-style diff <style-a> <style-b>
-naqb-style list | show <name> | fork <name> | fingerprint <name> | delete <name>
-```
-
 ### `internal/jobs`
 Async job queue backed by the SQLite `jobs` table:
 - `types.go` — `JobType` constants + `*Payload` structs (write/qa/research/pipeline)
 - `queue.go` — `Enqueue`, `Next`, `Complete`, `Fail`, `Cancel`, `Status`
 - `worker.go` — `Worker.Run(ctx)` dispatches N goroutines draining the queue
 
-### `internal/log`
+### `pkg/log`
 Leveled logger (`DEBUG/INFO/WARN/ERROR`) → `~/.naqb/nqb.log`.
 `NQB_DEBUG=1` drops to DEBUG and echoes to stderr.
+
+### `pkg/wordcount`
+Word and token counting utilities for Arabic and Latin scripts.
+
+### `pkg/youtube`
+YouTube transcript extraction and search integration.
 
 ---
 

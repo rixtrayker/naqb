@@ -104,7 +104,7 @@ Changes take effect on the next `nqb write` or `nqb qa` run.
 
 ## Adding a Custom Template (for contributors)
 
-See `internal/config/templates.go`. Add a `Template` struct to the `templates` slice:
+See `pkg/config/templates.go`. Add a `Template` struct to the `templates` slice:
 
 ```go
 {

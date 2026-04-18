@@ -1,6 +1,21 @@
 # Known Issues
 
-All issues from the 2026-03-20 codebase audit have been resolved.
+## Active (2026-04-18)
+
+### gosec Security Findings (tracked in Sprint 0)
+
+| ID | Severity | Files | Issue |
+|---|---|---|---|
+| G703 | HIGH | `keycheck.go:165`, `import.go:155-276` | Path traversal — user input flows into file paths without sanitization |
+| G702 | HIGH | `keycheck.go:175-196`, `config.go:119` | Command injection via taint analysis |
+| G204 | MEDIUM | `sidebar.go:266`, `exporter.go:68`, `status.go:113-122` | Subprocess launched with variable arguments |
+| G204 | MEDIUM | `config.go:119` | `exec.Command` with user-configured editor path |
+
+**Fix plan:** See `docs/implementation-plan.md` S0.8–S0.10.
+
+---
+
+## Resolved (2026-03-20)
 
 ## Resolved (2026-03-20) — Top 5 (High Impact)
 
