@@ -72,7 +72,7 @@ Requires COMPOSIO_API_KEY (stored in macOS Keychain by nqb setup).`,
 			fmt.Print("  Finding/creating master Google Doc... ")
 			doc, err := client.FindOrCreateBookDoc(ctx, existingID, cfg.Title)
 			if err != nil {
-				return fmt.Errorf("Google Docs: %w", err)
+				return fmt.Errorf("google docs: %w", err)
 			}
 			fmt.Printf("✓\n  %s\n", doc.URL)
 

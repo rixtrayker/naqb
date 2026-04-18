@@ -177,7 +177,7 @@ func DequeueJob(db *sql.DB) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback() //nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback on error path, best-effort
 
 	row := tx.QueryRow(
 		`SELECT id FROM jobs WHERE status = 'pending'

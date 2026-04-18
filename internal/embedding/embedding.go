@@ -104,9 +104,10 @@ func (e *openAIEmbedder) Embed(ctx context.Context, texts []string) ([][]float32
 		"model": e.model,
 		"input": texts,
 	}
-	if e.dimensions > 0 && e.model != defaultOpenAIModel {
-		// Some APIs (Voyage) don't support 'dimensions' param
-		// Don't send it unless needed
+	// Some APIs (Voyage) don't support 'dimensions' param.
+	// Only include it when using the default OpenAI model.
+	if e.dimensions > 0 && e.model == defaultOpenAIModel {
+		body["dimensions"] = e.dimensions
 	}
 	bodyJSON, err := json.Marshal(body)
 	if err != nil {

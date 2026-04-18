@@ -121,7 +121,7 @@ func humanize(msg string) string {
 // FormatMarkdown renders the session report as a markdown changelog.
 func FormatMarkdown(r *SessionReport) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("# Writing Session — %s\n\n", r.Date))
+	fmt.Fprintf(&sb, "# Writing Session — %s\n\n", r.Date)
 
 	if len(r.Entries) == 0 {
 		sb.WriteString("No commits found in this session.\n")
@@ -140,9 +140,9 @@ func FormatMarkdown(r *SessionReport) string {
 		if !ok {
 			continue
 		}
-		sb.WriteString(fmt.Sprintf("## %s\n\n", cat))
+		fmt.Fprintf(&sb, "## %s\n\n", cat)
 		for _, item := range items {
-			sb.WriteString(fmt.Sprintf("- %s\n", item))
+			fmt.Fprintf(&sb, "- %s\n", item)
 		}
 		sb.WriteString("\n")
 	}

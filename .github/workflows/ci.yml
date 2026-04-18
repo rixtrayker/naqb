@@ -40,7 +40,10 @@ jobs:
           go work sync
           git diff --exit-code go.mod go.sum
           for mod in pkg/*/; do
-            git diff --exit-code "$mod/go.mod" "$mod/go.sum"
+            git diff --exit-code -- "$mod/go.mod"
+            if [ -f "$mod/go.sum" ]; then
+              git diff --exit-code -- "$mod/go.sum"
+            fi
           done
 
       - name: Build

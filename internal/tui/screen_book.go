@@ -358,11 +358,6 @@ func (m *BookViewModel) View() string {
 	if sidebarW < 12 {
 		sidebarW = 12
 	}
-	mainW := m.width - sidebarW - 4
-	if mainW < 20 {
-		mainW = 20
-	}
-
 	sidebarSized := lipgloss.NewStyle().Height(bodyH).Render(sidebarContent)
 	mainSized := lipgloss.NewStyle().Height(bodyH).Render(mainContent)
 

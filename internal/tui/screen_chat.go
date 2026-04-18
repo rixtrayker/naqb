@@ -129,7 +129,6 @@ func (m *ChatModel) View() string {
 	case m.err != "":
 		statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render("Error: " + m.err)
 	default:
-		statusLine = keys.ChatBindings[0].Key
 		statusLine = theme.RenderHintBar(keys.ChatBindings)
 	}
 
