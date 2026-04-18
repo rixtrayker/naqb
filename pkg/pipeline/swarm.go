@@ -38,6 +38,18 @@ type SwarmResult struct {
 	Errors  map[int]error
 }
 
+// syncWriter wraps an io.Writer with a mutex for safe concurrent use.
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (sw *syncWriter) Write(p []byte) (int, error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.w.Write(p)
+}
+
 // RunSwarm runs the same stage list for multiple chapters in parallel,
 // optionally checkpointing each chapter under a sub-job ID.
 func RunSwarm(ctx context.Context, stages []Stage, in SwarmInput) (*SwarmResult, error) {
@@ -61,11 +73,14 @@ func RunSwarm(ctx context.Context, stages []Stage, in SwarmInput) (*SwarmResult,
 	}
 	var mu sync.Mutex
 
+	// Wrap the shared output writer for thread-safe concurrent writes.
+	safeOut := &syncWriter{w: in.Out}
+
 	for _, ch := range in.ChapterNums {
 		ch := ch // capture loop var
 		g.Go(func() error {
 			var buf strings.Builder
-			w := io.MultiWriter(in.Out, &buf)
+			w := io.MultiWriter(safeOut, &buf)
 
 			jobID := in.JobID
 			if jobID != "" {
@@ -88,7 +103,7 @@ func RunSwarm(ctx context.Context, stages []Stage, in SwarmInput) (*SwarmResult,
 			defer mu.Unlock()
 			if err != nil {
 				res.Errors[ch] = err
-				fmt.Fprintf(in.Out, "  Chapter %d failed: %v\n", ch, err)
+				fmt.Fprintf(safeOut, "  Chapter %d failed: %v\n", ch, err)
 			} else {
 				res.Results[ch] = result
 			}
