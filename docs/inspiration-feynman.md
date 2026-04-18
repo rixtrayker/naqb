@@ -262,3 +262,545 @@ If adopting these ideas, suggested order:
   and well-integrated
 - **Browser preview** -- naqb has pandoc export which is more appropriate
   for scholarly output (PDF/EPUB with proper Arabic typesetting)
+
+---
+
+## Current Gaps in naqb (Audit: 2026-04-18)
+
+A honest assessment of what's missing, incomplete, or stubbed in the codebase.
+
+### GAP 1: Stub Backends (Will Error at Runtime)
+
+| Component | Status | Detail |
+|---|---|---|
+| `store/vector/lancedb.go` | STUB | All methods return `ErrNotImplemented` |
+| `store/vector/zilliz.go` | STUB | All methods return `ErrNotImplemented` |
+| `embedding/bedrock` | STUB | `NewBedrock()` returns stub; all calls error |
+
+Only **Chroma** works as a vector store backend. LanceDB and Zilliz are
+declared in the factory but will fail if configured. The Bedrock embedder
+is similarly a placeholder.
+
+**Impact:** Users who configure `backend: lancedb` or `backend: zilliz` in
+their book.yaml will get a runtime error with no helpful guidance.
+
+**Fix priority:** Medium. Chroma works. But should at least return a clear
+error message pointing users to Chroma, or remove the options from docs.
+
+---
+
+### GAP 2: Packages Without Tests (12 packages)
+
+| Package | Risk |
+|---|---|
+| `internal/exporter` | HIGH -- PDF/EPUB/DOCX export untested |
+| `internal/gdocs` | HIGH -- Google Docs sync untested |
+| `internal/mcpserver` | HIGH -- MCP server (6 tools) untested |
+| `internal/store` (interface pkg) | LOW -- just type definitions |
+| `internal/context/arabic` | MEDIUM -- 11 Arabic analytical layers untested |
+| `internal/tui/components` | LOW -- UI components |
+| `internal/tui/keys` | LOW -- key binding definitions |
+| `internal/tui/theme` | LOW -- color theme definitions |
+| `pkg/log` | LOW -- simple logger |
+| `pkg/research` | HIGH -- Scout/Explorer/Scribe pipeline untested |
+| `cmd/*` (all 3) | LOW -- entry points, thin wrappers |
+
+The highest-risk untested packages are:
+- **research pipeline** -- core feature, no tests at all
+- **exporter** -- pandoc wrappers, easy to break with pandoc version changes
+- **mcpserver** -- 6 tool handlers with no coverage
+- **gdocs** -- HTTP client for Composio API, untested
+
+---
+
+### GAP 3: No Provenance Tracking
+
+Chapters are written to `chapters/ch-XX.md` with no record of:
+- Which sources were consulted during context building
+- Which research notes were injected into the prompt
+- What the LLM's confidence level was
+- Whether any sources were unavailable (degraded context)
+
+The EpistemicState system exists in `knowledge/epistemic.go` and is injected
+via `agent/context.go`, but it doesn't produce a human-readable artifact.
+There's no `.provenance.md` sidecar per chapter.
+
+**Fix priority:** HIGH -- this is the #1 Feynman feature worth adopting.
+
+---
+
+### GAP 4: Single-Pass Pipeline (No Iterative Quality Loops)
+
+The pipeline runs: context -> write -> QA (optional). If QA finds issues,
+the user must manually run `nqb fix --chapter N`. There's no automated
+write -> QA -> revise -> re-QA loop.
+
+The `pipeline/debt.go` ContextDebt system tracks degradation but doesn't
+trigger automatic remediation. The DAG executor (`pipeline/executor.go`)
+supports parallel stages but not cycles/loops.
+
+**Fix priority:** HIGH -- this is the biggest pipeline upgrade available.
+
+---
+
+### GAP 5: No Session Search
+
+Sessions are stored in SQLite (`internal/db/queries.go`) with full message
+history. But there's no way to search across sessions from the CLI or TUI.
+
+`nqb session` lists sessions but can't search message content. The agent
+chat has no `/search` command. Feynman's session search (across JSONL files)
+is a clear gap.
+
+**Fix priority:** MEDIUM -- useful for long-running book projects.
+
+---
+
+### GAP 6: Google Docs Sync is Fragile
+
+`internal/gdocs/client.go` is fully implemented but:
+- No tests (the HTTP calls to Composio are never mocked/tested)
+- Hardcoded fallback user ID (`pg-test-f3eaa561-...`)
+- No pull direction -- only push (chapters -> Google Doc)
+- No conflict detection (overwrites entire doc content)
+- No incremental sync (pushes all chapters every time)
+
+**Fix priority:** LOW -- works for the basic use case but brittle.
+
+---
+
+### GAP 7: `nqb chat` vs `nqb .` Duplication
+
+Two separate chat implementations:
+- `commands/chat.go` -> `tui.RunChat()` -- simple REPL with truncated context
+- `commands/open.go` -> `tui/agent_chat.go` -- full Fantasy agent with tools
+
+The `nqb chat` command is a simpler, less capable version that truncates
+chapter content at 8000 chars and doesn't use the agent tool system.
+Users who discover `nqb chat` first get a worse experience than `nqb .`.
+
+**Fix priority:** LOW -- could deprecate `nqb chat` in favor of `nqb .`.
+
+---
+
+### GAP 8: No Lab Notebook / Activity Log
+
+No human-readable running log of what the agent did across sessions.
+The SQLite database stores structured data but there's no:
+- `.naqb/activity.md` or similar narrative log
+- Summary of "what happened today" across agent sessions
+- Record of editorial decisions and why chapters were revised
+
+`internal/changelog/generator.go` generates changelogs from git commits,
+but this is git-level (commit messages), not agent-level (what the LLM
+decided, what sources it used, what it changed and why).
+
+**Fix priority:** MEDIUM -- valuable for multi-week writing projects.
+
+---
+
+### GAP 9: Missing `pkg/runtime` Integration
+
+`pkg/runtime/` contains a complete LangGraph-style StateGraph engine with:
+- Nodes, edges, conditional routing
+- Checkpoint persistence (SQLite-backed)
+- Interrupt/resume support
+- Tool integration
+
+This is a **fully built, tested** runtime that appears to be **unused** by
+the main application. It's untracked in git (listed in `.gitignore` or just
+untracked), and no internal package imports it.
+
+**Fix priority:** DECISION NEEDED -- either integrate it as the next-gen
+pipeline engine (replacing `pipeline/dag.go`) or remove it to reduce
+maintenance burden. It duplicates `pipeline/executor.go` functionality
+with more features.
+
+---
+
+### GAP 10: Exporter Has No Arabic-Specific Handling
+
+`internal/exporter/` wraps pandoc for PDF/EPUB/DOCX/Web export but:
+- No RTL-specific pandoc flags (`--variable dir=rtl`)
+- No Arabic font configuration (critical for proper rendering)
+- No XeLaTeX template for Arabic typography
+- No EPUB metadata for RTL reading direction
+- Web export doesn't set `dir="rtl"` on HTML
+
+For a tool focused on Arabic scholarly writing, the export pipeline should
+handle bidirectional text, proper Arabic fonts, and RTL layout by default.
+
+**Fix priority:** HIGH for Arabic books, low for English books.
+
+---
+
+### GAP 11: Context Stack System Unused in Practice
+
+`internal/context/` has a sophisticated system:
+- `stack.go` -- ContextLayer (positions 0-5), ContextStack (YAML serialization)
+- `braid.go` -- BraidedField, BraidPoint (AGREEMENT/CONFLICT/RESONANCE/SILENCE)
+- `processor.go` -- RunStrands (parallel goroutine processing)
+- `arabic/layers.go` -- 11 standard Arabic analytical layers
+
+Tests exist and pass, but it's unclear if this system is actually used
+by the main pipeline. The context builder (`agents/context_builder.go`)
+may be using a simpler approach while this sophisticated system sits idle.
+
+**Fix priority:** MEDIUM -- the system is built and tested, needs wiring
+into the actual context building flow.
+
+---
+
+### GAP 12: Style Engine Disconnected
+
+`internal/style/` has a complete style engine:
+- Extract linguistic/structural/rhetorical profiles from text
+- Apply style constraints (prompt mode or postprocess mode)
+- Blend, fork, diff, fingerprint style images
+- Registry at `~/.naqb/styles/`
+
+Plus a standalone CLI (`cmd/naqb-style/main.go`).
+
+But `nqb fix --style` is the only connection point. The write pipeline
+doesn't apply style constraints during initial chapter generation. The
+style engine should be part of the standard write flow, not just fixes.
+
+**Fix priority:** MEDIUM -- integrate into `agents/writer.go`.
+
+---
+
+### GAP 13: Knowledge Graph Not Queryable from CLI
+
+`internal/knowledge/` has:
+- 8 claim types, ClaimStore (SQLite-backed)
+- 8 relation types, Graph with BFS shortest path
+- EpistemicState with Load/Save/Accumulate/Summary
+
+But there's no CLI command to:
+- List claims for a chapter
+- Query the knowledge graph
+- View epistemic state
+- Add manual claims or relations
+
+The agent tool `knowledge_search` exists, but it's only accessible inside
+the Fantasy agent loop, not from the command line.
+
+**Fix priority:** LOW -- the system works internally, CLI access is a UX
+improvement.
+
+---
+
+### GAP 14: YouTube Research (`pkg/youtube/`) Exists but Status Unknown
+
+`pkg/youtube/transcript.go` with tests exists. It's imported by
+`pkg/research/youtube.go`. But there's no documentation and it's unclear
+if YouTube transcript fetching actually works or requires API keys.
+
+**Fix priority:** LOW -- document or test in integration.
+
+---
+
+### GAP 15: `pkg/` Modules Not in Main Go Workspace Test
+
+The `pkg/` directory contains 12 separate Go modules (each with their own
+`go.mod`). Running `go test ./...` from the project root only tests
+`internal/` packages. The `pkg/` modules are tested independently via
+`go.work` but this isn't reflected in `make check`.
+
+`pkg/log` and `pkg/research` have zero test files.
+
+**Fix priority:** MEDIUM -- `make check` should cover all modules.
+
+---
+
+### Gap Summary Matrix
+
+| # | Gap | Severity | Effort |
+|---|---|---|---|
+| 1 | Stub backends (LanceDB/Zilliz/Bedrock embed) | Medium | Low |
+| 2 | 12 packages without tests | High | High |
+| 3 | No provenance tracking | High | Medium |
+| 4 | Single-pass pipeline (no iterative loops) | High | High |
+| 5 | No session search | Medium | Low |
+| 6 | Fragile Google Docs sync | Low | Medium |
+| 7 | `nqb chat` vs `nqb .` duplication | Low | Low |
+| 8 | No lab notebook / activity log | Medium | Medium |
+| 9 | `pkg/runtime` StateGraph unused | Decision | Low |
+| 10 | No Arabic-specific export handling | High | Medium |
+| 11 | Context stack system unused in practice | Medium | Low |
+| 12 | Style engine disconnected from write pipeline | Medium | Low |
+| 13 | Knowledge graph not queryable from CLI | Low | Low |
+| 14 | YouTube research undocumented | Low | Low |
+| 15 | `pkg/` modules not in `make check` | Medium | Low |
+
+### Recommended Attack Order
+
+**Wave 1 (Quick wins, high impact):**
+- #3 Provenance sidecars (pairs with Feynman inspiration)
+- #10 Arabic RTL export flags
+- #15 Fix `make check` to cover `pkg/` modules
+
+**Wave 2 (Core pipeline upgrades):**
+- #4 Iterative quality loops
+- #12 Wire style engine into write pipeline
+- #11 Wire context stacks into context builder
+
+**Wave 3 (Test debt):**
+- #2 Tests for exporter, mcpserver, research, gdocs
+
+**Wave 4 (UX polish):**
+- #5 Session search
+- #8 Lab notebook / activity log
+- #7 Deprecate `nqb chat`
+- #13 CLI for knowledge graph
+
+**Deferred / Decision needed:**
+- #9 Decide on `pkg/runtime` fate
+- #1 Stub backends (only if users request LanceDB/Zilliz)
+- #6 Google Docs sync improvements (only if users need bidirectional sync)
+- #14 YouTube research documentation
+
+---
+
+## Deep Audit: Code-Level Gaps (28 additional findings)
+
+Beyond the 15 architectural gaps above, a deep code audit uncovered 28
+additional issues — bugs, dead code, missing wiring, and inconsistencies.
+
+### HIGH Severity (5)
+
+#### D1. Parallel state merge is last-writer-wins
+
+**File:** `pkg/runtime/graph.go:211-216`
+
+```go
+// Merge states: for simplicity, use the last non-zero state.
+for _, s := range states {
+    *state = s
+}
+```
+
+When `InvokeParallel` runs concurrent nodes, only the last goroutine's
+state survives. N-1 nodes' output is silently dropped. Any DAG with
+truly concurrent stages will lose data.
+
+#### D2. ContextDebt defined but never wired into execution
+
+**Files:** `pkg/pipeline/debt.go:15-65`, `pkg/pipeline/dag_test.go:133`
+
+`ContextDebt` (with `Record`, `HasViolations`, `Summary`) is fully
+implemented and tested but never instantiated by `pipeline.Run()`,
+`RunDAG()`, or any stage execution. Budget tracking uses
+`llm.SessionBudget.Record()` instead. The policy-violation tracking
+(FAIL/DEGRADE/SUBSTITUTE/HUMAN_GATE) documented in the DAG spec is
+dead code.
+
+#### D3. RESEARCH and SYNTHESIZE stage types declared but never registered
+
+**File:** `pkg/pipeline/dag.go:16-17`
+
+```go
+StageTypeResearch   StageType = "RESEARCH"
+StageTypeSynthesize StageType = "SYNTHESIZE"
+```
+
+These constants exist but no implementation is registered in the stage
+registry. The DAG planner could generate plans referencing them, but
+they would fail at runtime with "unknown stage type".
+
+#### D4. `--reindex` flag in `nqb index` is a no-op
+
+**File:** `internal/commands/index.go:19,96-98`
+
+The flag is defined and accepted but never passed to `store.IndexChapter()`
+or `store.IndexFile()`. It only controls printing a message. Documents
+are always re-indexed regardless, making the flag misleading.
+
+#### D5. `NewProviderFromGlobalConfig` returns empty model string
+
+**File:** `pkg/agent/provider.go:68`
+
+Returns `(provider, "", nil)` — empty model. The caller in
+`openBookAtAgentChat()` works around this by separately calling
+`agents.ModelFor()`, but any other caller gets an empty model leading
+to API errors.
+
+---
+
+### MEDIUM Severity (11)
+
+#### D6. `loadOutlineSection` returns entire outline, ignores chapter number
+
+**File:** `pkg/agent/context.go:104-111`
+
+Despite the name and `chapterNum` parameter, returns the full outline.
+For large outlines this wastes context tokens and dilutes chapter-specific
+guidance.
+
+#### D7. Circuit breaker bypassed for streaming
+
+**Files:** `pkg/llm/circuit_breaker.go`, `pkg/llm/retry.go:73`
+
+`CBFor()` is only called from `RetryProvider.Complete()`. The `Stream()`
+path says "Streaming is never retried — pass through directly". Since
+agent chat (`nqb .`) uses streaming, circuit-breaker protection is
+absent for the primary interactive use case.
+
+#### D8. `agent.Stream()` returns "not yet implemented"
+
+**File:** `pkg/agent/agent.go:227-229`
+
+The `Stream()` method satisfies the `runtime.Runnable` interface but
+always returns an error. Any code relying on `Runnable.Stream()` will
+fail. This is a partial interface implementation.
+
+#### D9. `ProviderNameFor` missing cases for Plan and Research stages
+
+**File:** `pkg/agents/model_selector.go:98-118`
+
+Has explicit cases for Write, QA/Gap/Conflict, Fix, Chat, Init but no
+case for `StagePlan` or `StageResearch`. Falls through to `return ""`,
+so the provider cannot be overridden per-book for these stages (though
+the model can via `ModelFor()`).
+
+#### D10. `RaceComplete` is dead code
+
+**File:** `pkg/llm/race.go`
+
+`RaceComplete()` fires two providers in parallel and returns the first
+adequate response. Fully implemented but never called from anywhere
+in the project.
+
+#### D11. BedrockProvider missing TokenReporter interface
+
+**File:** `pkg/llm/bedrock.go`
+
+No `LastTokens()` method. The `TokenReporter` interface is checked via
+type assertion in `RetryProvider` and `FallbackProvider`. When Bedrock
+is used, token counts are always (0, 0), breaking cost tracking and
+budget degradation.
+
+#### D12. MCP server hardcoded to Anthropic only
+
+**File:** `internal/commands/mcp.go:42-44`
+
+Only accepts Anthropic API key and bypasses the multi-provider
+architecture (`providerFor()`, `config.ProviderConfigFor()`).
+
+#### D13. `nqb chat` truncation breaks Arabic UTF-8
+
+**File:** `internal/commands/chat.go:93-96`
+
+```go
+if len(content) > 8000 {
+    content = content[:8000] + "\n... (truncated)"
+}
+```
+
+`len()` counts bytes, not characters. For Arabic (multi-byte UTF-8),
+this slices mid-character, producing invalid UTF-8 in the system prompt.
+Can cause LLM API errors or garbled output.
+
+#### D14. `readPrompt` looks in wrong directory
+
+**File:** `pkg/pipeline/reflection.go:216-222`
+
+Looks in `bookDir/prompts/` but `config.InitBookDir()` creates
+`config/prompts/`. User-customized prompts placed in the standard
+location will never be found. The fallback system prompt masks this.
+
+#### D15. Hardcoded Composio test user ID leaks to production
+
+**File:** `internal/commands/sync.go:59-61`
+
+When `cfg.Sync.ComposioUserID` is empty, falls back to
+`"pg-test-f3eaa561-6583-4190-9d84-06e15fd4b522"` — a dev artifact
+that will route data to the wrong account.
+
+#### D16. Migration 003 FK without ON DELETE CASCADE
+
+**File:** `internal/db/migrations/003_knowledge.sql`
+
+`claim_relations` and `concept_claims` reference `claims(id)` without
+`ON DELETE CASCADE`. Deleting a claim will fail with FK constraint
+violation. Migrations 001 and 005 correctly use CASCADE.
+
+---
+
+### LOW Severity (12)
+
+#### D17. `repeat()` cross-file coupling
+`internal/commands/doctor.go` and `session.go` call `repeat()` defined
+in `batch.go`. Fragile coupling — removing `batch.go` breaks two
+unrelated commands.
+
+#### D18. Legacy "Anthropic API key" text in config command
+`internal/commands/config.go` `--set-key` prompt still says "Anthropic
+API key" despite multi-provider support.
+
+#### D19. Native/Bedrock model IDs not in KnownModels registry
+`pkg/llm/models.go` — `ModelAnthropicHaiku`, `ModelAnthropicSonnet`,
+`ModelAnthropicOpus`, `BedrockModelMiniMax*` are defined as constants
+but absent from `KnownModels`. `nqb models` won't show them, cost
+tracking returns zero.
+
+#### D20. Import wizard hardcodes ChapterNum=1
+`internal/tui/screen_import.go:92` — no way to specify which chapter
+number the imported draft should be assigned to.
+
+#### D21. `grep_chunks` tool name misleading
+`pkg/booktools/research.go` — tool named `grep_chunks` actually calls
+`store.QueryResearch()` (semantic/vector search), not grep.
+
+#### D22. nil context in `epistemic.Load()`
+`pkg/agent/context.go:25` — passes `nil` as context arg. Works now
+but violates Go conventions and will panic if implementation ever adds
+context-dependent behavior.
+
+#### D23. `languageDescs()` only handles "ar" and default
+`pkg/agents/context_builder.go` — books in fr/es/de get generic English
+language description, potentially producing inappropriate style guidance.
+
+#### D24. `fix.go` indentation artifact
+`internal/commands/fix.go:64` — extra leading whitespace (4 extra tabs),
+likely a merge artifact.
+
+#### D25. `write.go` short desc says "Claude Sonnet" but model is configurable
+`internal/commands/write.go:27` — misleading for users on non-Anthropic
+providers.
+
+#### D26. `pkg/runtime` heavy SQLite dependency for generic module
+`pkg/runtime/go.mod` — depends on `modernc.org/sqlite` just for
+`DBCheckpointer`. Couples a generic runtime to a specific persistence
+technology.
+
+#### D27. `ToolRegistry.List()` non-deterministic order
+`pkg/runtime/registry.go:25-31` — iterates `map[string]Tool`, producing
+non-deterministic tool ordering in LLM system prompts. Different runs
+may generate inconsistent agent plans.
+
+#### D28. `internal/changelog` not tracked in MEMORY.md
+`internal/commands/changelog.go` imports `internal/changelog` which
+exists, works, and has tests — but is absent from the architecture map.
+
+---
+
+### Combined Gap Summary (All 43 Gaps)
+
+| Category | Count | Items |
+|---|---|---|
+| **Architectural gaps** | 15 | #1-#15 (original audit) |
+| **Code bugs (HIGH)** | 5 | D1-D5 |
+| **Missing wiring (MEDIUM)** | 11 | D6-D16 |
+| **Polish/consistency (LOW)** | 12 | D17-D28 |
+| **TOTAL** | **43** | |
+
+### Critical Fix Priorities (bugs that will bite in production)
+
+1. **D13** `nqb chat` UTF-8 truncation — will corrupt Arabic text
+2. **D1** Parallel state merge — silently drops concurrent stage output
+3. **D15** Hardcoded Composio test user ID — data goes to wrong account
+4. **D5** Empty model string — API errors for any non-standard caller
+5. **D14** Wrong prompt directory — user customizations silently ignored
+6. **D4** `--reindex` no-op — flag does nothing, misleading users
+7. **D16** Missing CASCADE — claim deletion fails with FK violation
