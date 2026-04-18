@@ -90,7 +90,7 @@ func ListSessions(db *sql.DB, bookDir string, limit int) ([]Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var sessions []Session
 	for rows.Next() {
@@ -138,7 +138,7 @@ func GetSessionMessages(db *sql.DB, sessionID string) ([]Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var msgs []Message
 	for rows.Next() {
@@ -262,7 +262,7 @@ func ListJobs(db *sql.DB, status string, limit int) ([]Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var jobs []Job
 	for rows.Next() {
@@ -349,7 +349,7 @@ func ListClaims(db *sql.DB, bookID string, chapter int) ([]ClaimRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanClaims(rows)
 }
 
@@ -403,7 +403,7 @@ func GetRelations(db *sql.DB, sourceID string) ([]RelationRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var rels []RelationRow
 	for rows.Next() {
 		var r RelationRow
@@ -492,7 +492,7 @@ func CompletedStages(db *sql.DB, jobID string) (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := make(map[string]bool)
 	for rows.Next() {

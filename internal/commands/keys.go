@@ -65,8 +65,8 @@ func keysList() error {
 	statuses := keycheck.ResolveAll()
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "KEY\tSTATUS\tSOURCE")
-	fmt.Fprintln(w, strings.Repeat("─", 26)+"\t"+strings.Repeat("─", 22)+"\t"+strings.Repeat("─", 10))
+	_, _ = fmt.Fprintln(w, "KEY\tSTATUS\tSOURCE")
+	_, _ = fmt.Fprintln(w, strings.Repeat("─", 26)+"\t"+strings.Repeat("─", 22)+"\t"+strings.Repeat("─", 10))
 	for _, k := range statuses {
 		status := "MISSING"
 		source := "—"
@@ -119,8 +119,8 @@ func keysTest() error {
 	defer cancel()
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "KEY\tRESULT")
-	fmt.Fprintln(w, strings.Repeat("─", 26)+"\t"+strings.Repeat("─", 40))
+	_, _ = fmt.Fprintln(w, "KEY\tRESULT")
+	_, _ = fmt.Fprintln(w, strings.Repeat("─", 26)+"\t"+strings.Repeat("─", 40))
 
 	for _, k := range statuses {
 		if !k.Set {
@@ -163,7 +163,7 @@ func probeOpenRouter(ctx context.Context) string {
 	if err != nil {
 		return "✗ " + err.Error()
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == 200 {
 		return "✓ OK"
 	}
@@ -187,7 +187,7 @@ func probeAnthropic(ctx context.Context) string {
 	if err != nil {
 		return "✗ " + err.Error()
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == 200 {
 		return "✓ OK"
 	}

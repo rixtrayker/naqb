@@ -92,7 +92,7 @@ func (q *Queue) Status(_ context.Context) (map[string]int, error) {
 	if err != nil {
 		return nil, fmt.Errorf("queue: status: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := make(map[string]int)
 	for rows.Next() {

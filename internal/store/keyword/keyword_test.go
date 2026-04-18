@@ -25,7 +25,7 @@ func TestIndexAndSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	docs := []store.KeywordDoc{
 		{ID: "doc1", Content: "the quick brown fox jumps over the lazy dog"},
@@ -58,7 +58,7 @@ func TestDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 	_ = s.Index(ctx, store.KeywordDoc{ID: "to-delete", Content: "delete me please"})

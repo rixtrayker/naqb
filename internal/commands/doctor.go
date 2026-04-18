@@ -158,7 +158,7 @@ func runDoctor() error {
 			results = append(results, checkResult{"sqlite", "FAIL", err.Error()})
 			fmt.Printf("  %-26s  %s  %v\n", "sqlite", failLabel(), err)
 		} else {
-			sqlDB.Close()
+			_ = sqlDB.Close()
 			results = append(results, checkResult{"sqlite", "PASS", dbPath})
 			fmt.Printf("  %-26s  %s  %s\n", "sqlite", passLabel(), dbPath)
 		}

@@ -143,8 +143,7 @@ func printCarapaceSpec(shell string) error {
 func RegisterDynamicCompletions(root *cobra.Command) {
 	// Find subcommands by use
 	for _, sub := range root.Commands() {
-		switch sub.Use {
-		case "open [name|path]":
+		if sub.Use == "open [name|path]" {
 			sub.ValidArgsFunction = completeProjectNames
 		}
 		// Register flag completions on all subcommands

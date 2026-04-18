@@ -87,7 +87,7 @@ func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
 					continue
 				}
 
-				fmt.Fprintf(w.out, "[worker-%d] job %s type=%s chapter=%d batch=%v\n",
+				_, _ = fmt.Fprintf(w.out, "[worker-%d] job %s type=%s chapter=%d batch=%v\n",
 					workerID, job.ID[:8], job.Type, job.ChapterNum, job.Batch)
 
 				execErr := w.dispatch(ctx, job)
@@ -97,7 +97,7 @@ func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
 					mu.Lock()
 					result.Failed++
 					mu.Unlock()
-					fmt.Fprintf(w.out, "[worker-%d] ✗ job %s failed: %v\n", workerID, job.ID[:8], execErr)
+					_, _ = fmt.Fprintf(w.out, "[worker-%d] ✗ job %s failed: %v\n", workerID, job.ID[:8], execErr)
 					// Persist a notification for provider errors so the user
 					// sees it even after the terminal is closed.
 					if llm.IsProviderError(execErr) {
@@ -112,7 +112,7 @@ func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
 						if writeErr := WriteNotification(n); writeErr != nil {
 							log.Warn("worker: could not write notification", "err", writeErr)
 						}
-						fmt.Fprintf(w.out, "\n[ALERT] Job %s failed: %s\n  Run `nqb keys` to check your API keys.\n\n",
+						_, _ = fmt.Fprintf(w.out, "\n[ALERT] Job %s failed: %s\n  Run `nqb keys` to check your API keys.\n\n",
 							job.ID[:8], n.ErrorKind)
 					}
 				} else {
@@ -121,7 +121,7 @@ func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
 					mu.Lock()
 					result.Processed++
 					mu.Unlock()
-					fmt.Fprintf(w.out, "[worker-%d] ✓ job %s done\n", workerID, job.ID[:8])
+					_, _ = fmt.Fprintf(w.out, "[worker-%d] ✓ job %s done\n", workerID, job.ID[:8])
 				}
 			}
 		}(i + 1)

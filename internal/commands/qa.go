@@ -93,13 +93,14 @@ the LLM audit when no API key is available.`,
 					fmt.Printf("  - %s\n", issue)
 				}
 			}
-			if deterministicOnly {
+			switch {
+			case deterministicOnly:
 				fmt.Printf("\nLLM audit: skipped (--deterministic-only)\n")
-			} else if clientErr != nil {
+			case clientErr != nil:
 				fmt.Printf("\nLLM audit: skipped (provider unavailable: %v)\n", clientErr)
-			} else if result.LLMReport != "" {
+			case result.LLMReport != "":
 				fmt.Printf("\nLLM Audit:\n%s\n", result.LLMReport)
-			} else {
+			default:
 				fmt.Printf("\nLLM audit: no findings\n")
 			}
 			if err := agents.WriteQAReport(bookDir, result); err != nil {

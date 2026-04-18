@@ -25,7 +25,7 @@ func TestResolve_EnvVar(t *testing.T) {
 
 func TestResolve_Missing(t *testing.T) {
 	k := KeyStatus{Name: "NO_SUCH_KEY_XYZ", EnvVar: "NO_SUCH_KEY_XYZ", KeychainService: "NO_SUCH_KEY_XYZ"}
-	os.Unsetenv("NO_SUCH_KEY_XYZ")
+	_ = os.Unsetenv("NO_SUCH_KEY_XYZ")
 
 	got := Resolve(k)
 	if got.Set {
@@ -67,8 +67,8 @@ func TestCheckCommand_OK(t *testing.T) {
 }
 
 func TestCheckCommand_Missing(t *testing.T) {
-	os.Unsetenv("OPENROUTER_API_KEY")
-	os.Unsetenv("ANTHROPIC_API_KEY")
+	_ = os.Unsetenv("OPENROUTER_API_KEY")
+	_ = os.Unsetenv("ANTHROPIC_API_KEY")
 
 	result := CheckCommand("write")
 	// Can't guarantee keychain is empty in test env, so only check structure.
@@ -85,7 +85,7 @@ func TestCheckCommand_UnknownCommand(t *testing.T) {
 }
 
 func TestCheckCommand_ResearchDeep(t *testing.T) {
-	os.Unsetenv("GEMINI_API_KEY")
+	_ = os.Unsetenv("GEMINI_API_KEY")
 
 	result := CheckCommand("research-deep")
 	if result.Command != "research-deep" {

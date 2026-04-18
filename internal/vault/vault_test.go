@@ -22,7 +22,7 @@ func TestLoadRegistry_FirstRun(t *testing.T) {
 	dir := newTestDir(t)
 	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", dir)
-	defer os.Setenv("HOME", origHome)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	reg, err := LoadRegistry()
 	if err != nil {

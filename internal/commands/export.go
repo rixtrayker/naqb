@@ -65,7 +65,7 @@ be installed; PDF also requires XeLaTeX.`,
 						exportErr = fmt.Errorf("unknown format: %s", f)
 					}
 					if exportErr == nil {
-						fmt.Fprintf(os.Stdout, "  → %s\n", outPath)
+						_, _ = fmt.Fprintf(os.Stdout, "  → %s\n", outPath)
 					}
 					return exportErr
 				}, os.Stdout)

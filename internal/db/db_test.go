@@ -16,7 +16,7 @@ func openTestDB(t *testing.T) (*sql.DB, func()) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	return db, func() { db.Close() }
+	return db, func() { _ = db.Close() }
 }
 
 func TestOpen_CreatesFile(t *testing.T) {
@@ -27,7 +27,7 @@ func TestOpen_CreatesFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("expected DB file to exist at %s: %v", path, err)
@@ -43,13 +43,13 @@ func TestOpen_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Open: %v", err)
 	}
-	db1.Close()
+	_ = db1.Close()
 
 	db2, err := Open(path)
 	if err != nil {
 		t.Fatalf("second Open (should be idempotent): %v", err)
 	}
-	db2.Close()
+	_ = db2.Close()
 }
 
 func TestOpen_TablesExist(t *testing.T) {

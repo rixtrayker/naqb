@@ -21,17 +21,17 @@ func Watch(ctx context.Context, bookDir string, rebuild RebuildFunc, out io.Writ
 	if err != nil {
 		return fmt.Errorf("creating watcher: %w", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	// Watch chapters and research directories
 	for _, subDir := range []string{"chapters", "research", "."} {
 		dir := filepath.Join(bookDir, subDir)
 		if err := w.Add(dir); err != nil {
-			fmt.Fprintf(out, "warning: cannot watch %s: %v\n", dir, err)
+			_, _ = fmt.Fprintf(out, "warning: cannot watch %s: %v\n", dir, err)
 		}
 	}
 
-	fmt.Fprintf(out, "Watching %s for changes (Ctrl+C to stop)...\n", bookDir)
+	_, _ = fmt.Fprintf(out, "Watching %s for changes (Ctrl+C to stop)...\n", bookDir)
 
 	// Debounce: group rapid events
 	var debounce <-chan time.Time
@@ -56,9 +56,9 @@ func Watch(ctx context.Context, bookDir string, rebuild RebuildFunc, out io.Writ
 
 		case <-debounce:
 			if pendingPath != "" {
-				fmt.Fprintf(out, "\n[watch] Change detected: %s\n", pendingPath)
+				_, _ = fmt.Fprintf(out, "\n[watch] Change detected: %s\n", pendingPath)
 				if err := rebuild(pendingPath); err != nil {
-					fmt.Fprintf(out, "[watch] Rebuild error: %v\n", err)
+					_, _ = fmt.Fprintf(out, "[watch] Rebuild error: %v\n", err)
 				}
 				pendingPath = ""
 			}
@@ -67,7 +67,7 @@ func Watch(ctx context.Context, bookDir string, rebuild RebuildFunc, out io.Writ
 			if !ok {
 				return nil
 			}
-			fmt.Fprintf(out, "[watch] Watcher error: %v\n", err)
+			_, _ = fmt.Fprintf(out, "[watch] Watcher error: %v\n", err)
 		}
 	}
 }

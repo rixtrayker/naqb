@@ -79,7 +79,7 @@ Use --priority to control processing order (higher = processed first).`,
 			if err != nil {
 				return err
 			}
-			defer sqlDB.Close()
+			defer func() { _ = sqlDB.Close() }()
 
 			q := jobs.New(sqlDB)
 			ctx := context.Background()
@@ -194,7 +194,7 @@ when present.`,
 			if err != nil {
 				return err
 			}
-			defer sqlDB.Close()
+			defer func() { _ = sqlDB.Close() }()
 
 			if jobID != "" {
 				job, err := db.GetJob(sqlDB, jobID)
@@ -281,7 +281,7 @@ Use --workers to increase concurrency for faster parallel processing.`,
 			if err != nil {
 				return err
 			}
-			defer sqlDB.Close()
+			defer func() { _ = sqlDB.Close() }()
 
 			q := jobs.New(sqlDB)
 			w := jobs.NewWorker(q, concurrency, drain, os.Stdout)
@@ -335,7 +335,7 @@ The job ID is shown by 'nqb batch status' (first 8 characters suffice).`,
 			if err != nil {
 				return err
 			}
-			defer sqlDB.Close()
+			defer func() { _ = sqlDB.Close() }()
 
 			q := jobs.New(sqlDB)
 			if err := q.Cancel(context.Background(), jobID); err != nil {

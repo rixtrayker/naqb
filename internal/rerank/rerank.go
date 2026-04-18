@@ -143,7 +143,7 @@ func (r *CohereReranker) Rerank(ctx context.Context, query string, docs []Docume
 	if err != nil {
 		return nil, fmt.Errorf("rerank: HTTP: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)

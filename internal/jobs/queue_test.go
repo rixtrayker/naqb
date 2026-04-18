@@ -21,7 +21,7 @@ func openTestDB(t *testing.T) (*sql.DB, func()) {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	return sqlDB, func() { sqlDB.Close() }
+	return sqlDB, func() { _ = sqlDB.Close() }
 }
 
 // suppress goose output in tests

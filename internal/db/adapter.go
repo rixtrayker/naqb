@@ -58,7 +58,7 @@ func (s *SessionStore) ListSessions(ctx context.Context, bookDir string, limit i
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var sessions []runtime.SessionInfo
 	for rows.Next() {

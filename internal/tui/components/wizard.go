@@ -61,8 +61,7 @@ type WizardResult struct {
 
 // Update handles navigation through the wizard steps.
 func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
@@ -115,19 +114,20 @@ func (m *WizardModel) View() string {
 	}
 
 	for i, step := range m.Steps {
-		if i < m.Current {
+		switch {
+		case i < m.Current:
 			val := m.Inputs[i].Value()
 			if val == "" {
 				val = step.Default
 			}
 			sb.WriteString(doneStyle.Render(fmt.Sprintf("  ✓ %s: %s", step.Label, val)) + "\n")
-		} else if i == m.Current {
+		case i == m.Current:
 			sb.WriteString(questionStyle.Render(fmt.Sprintf("  → %s:", step.Label)) + "\n")
 			sb.WriteString("    " + m.Inputs[i].View() + "\n")
 			if step.Default != "" && step.Default != m.Inputs[i].Value() {
 				sb.WriteString(hintStyle.Render(fmt.Sprintf("    (default: %s)", step.Default)) + "\n")
 			}
-		} else {
+		default:
 			sb.WriteString(hintStyle.Render(fmt.Sprintf("  · %s", step.Label)) + "\n")
 		}
 	}

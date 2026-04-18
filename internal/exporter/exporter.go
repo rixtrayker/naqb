@@ -62,10 +62,10 @@ type pandocArgs struct {
 
 // runPandoc executes pandoc with the given chapter files and args.
 func runPandoc(bookDir string, chapterFiles []string, args []string, outFile string) error {
-	fullArgs := append(args, "-o", outFile)
-	fullArgs = append(fullArgs, chapterFiles...)
+	args = append(args, "-o", outFile)
+	args = append(args, chapterFiles...)
 
-	cmd := exec.Command("pandoc", fullArgs...)
+	cmd := exec.Command("pandoc", args...)
 	cmd.Dir = bookDir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

@@ -77,10 +77,8 @@ func TestTokenizeContent(t *testing.T) {
 						t.Errorf("TokenizeContent included short token %q", tok)
 					}
 				}
-			} else {
-				if tt.check(toks) && tt.name == "filters short tokens" {
-					t.Errorf("check failed for %s: got %v", tt.name, toks)
-				}
+			} else if tt.check(toks) && tt.name == "filters short tokens" {
+				t.Errorf("check failed for %s: got %v", tt.name, toks)
 			}
 		})
 	}

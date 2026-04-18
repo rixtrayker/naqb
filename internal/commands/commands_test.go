@@ -108,7 +108,7 @@ func TestOutputFlags_NoColor_Env(t *testing.T) {
 
 func TestOutputFlags_ColorEnabled_Default(t *testing.T) {
 	// Ensure NO_COLOR is unset for this test
-	os.Unsetenv("NO_COLOR")
+	_ = os.Unsetenv("NO_COLOR")
 	f := OutputFlags{}
 	if f.ColorDisabled() {
 		t.Error("ColorDisabled should be false by default")

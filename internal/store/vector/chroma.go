@@ -62,7 +62,7 @@ func (s *ChromaStore) chromaRequest(ctx context.Context, method, path string, bo
 	if err != nil {
 		return nil, 0, fmt.Errorf("chroma: HTTP: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBody, _ := io.ReadAll(resp.Body)
 	return respBody, resp.StatusCode, nil
 }

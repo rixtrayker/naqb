@@ -71,7 +71,7 @@ func (c *Client) execute(ctx context.Context, action string, params map[string]a
 	if err != nil {
 		return nil, fmt.Errorf("composio request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {

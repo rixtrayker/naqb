@@ -4,6 +4,7 @@ package keyword
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +36,7 @@ func Open(path string) (*BleveStore, error) {
 	}
 
 	idx, err := bleve.Open(path)
-	if err == bleve.ErrorIndexPathDoesNotExist {
+	if errors.Is(err, bleve.ErrorIndexPathDoesNotExist) {
 		idx, err = bleve.New(path, buildMapping())
 	}
 	if err != nil {

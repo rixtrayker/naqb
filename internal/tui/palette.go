@@ -47,7 +47,7 @@ func (p *DefaultPalette) Dispatch(ctx context.Context, input, bookDir string, cf
 		switch args[i] {
 		case "--chapter", "-c":
 			if i+1 < len(args) {
-				fmt.Sscanf(args[i+1], "%d", &chNum)
+				_, _ = fmt.Sscanf(args[i+1], "%d", &chNum)
 				i++
 			}
 		case "--format", "-f":
