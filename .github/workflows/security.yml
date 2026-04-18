@@ -43,6 +43,8 @@ jobs:
 
       - name: Run gosec (root)
         uses: securego/gosec@v2.25.0
+        env:
+          GOTOOLCHAIN: auto
         with:
           args: ./...
 

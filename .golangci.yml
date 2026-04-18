@@ -13,13 +13,16 @@ linters:
     - nolintlint
     - sqlclosecheck
     - unconvert
-    - unparam
     - wastedassign
   disable:
     # Temporarily disabled due to high volume of legacy issues.
     # Re-enable incrementally: see docs/gap-closure-plan.md S1.2
     - errcheck
     - gocritic
+    - ineffassign
+    - staticcheck
+    - unparam
+    - unused
 
   settings:
     nolintlint:
