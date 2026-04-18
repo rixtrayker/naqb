@@ -442,22 +442,11 @@ In `runBatch`, if state implements `Mergeable`, use it. Otherwise fall back to l
 
 ## Cross-Cutting Concerns
 
-### Makefile Update (S1.1 — required before Sprint 2)
+### Makefile Update (S1.1 — ✅ Done)
 
-```makefile
-check:
-	go build ./...
-	go vet ./...
-	go test ./...
-	@for dir in pkg/*/; do \
-		if [ -f "$$dir/go.mod" ]; then \
-			echo "Testing $$dir..."; \
-			(cd "$$dir" && go test ./...) || exit 1; \
-		fi; \
-	done
-```
+`make check`, `make test`, `make test-v`, `make test-race`, `make vet`, `make lint`, and `make cover` now iterate all `pkg/*` workspace modules. `make tidy` uses `go work sync`.
 
-This must be done before Sprint 2 so that new code is validated across all modules.
+See `.github/workflows/ci.yml` for the CI equivalent.
 
 ### Migration (S1.2 — optional, can defer)
 

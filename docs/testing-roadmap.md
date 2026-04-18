@@ -19,7 +19,7 @@ This document tracks test coverage progress across the `pkg/*` modules and the r
 | `pkg/research` | **0.0%** | ⚫ None |
 | `pkg/log` | **0.0%** | ⚫ None |
 
-*Last updated: 2026-04-15*
+*Last updated: 2026-04-18*
 
 ## Completed Work
 
@@ -143,7 +143,35 @@ Operational layer — provider wrappers, token budget, cost estimation.
 
 These are lower priority unless research pipeline becomes a primary user path.
 
-## Running Coverage
+## CI/CD Pipeline
+
+GitHub Actions runs on every push to `main` and every pull request:
+
+| Workflow | What it does |
+|---|---|
+| **CI** | Test matrix (Go 1.26 + stable), `go work sync` check, race detector, test shuffle, build all binaries, golangci-lint |
+| **Security** | govulncheck, CodeQL (security-and-quality), gosec (non-blocking — legacy findings logged) |
+| **Release** | GoReleaser multi-binary (`nqb`, `naqb-style`, `nqb-mcp`) on `v*` tags |
+
+**Badges:**
+- CI: ![CI](https://github.com/rixtrayker/naqb/actions/workflows/ci.yml/badge.svg)
+- Security: ![Security](https://github.com/rixtrayker/naqb/actions/workflows/security.yml/badge.svg)
+
+### Local checks (before every commit)
+
+```bash
+# Full gate check — build + vet + test across root + all pkg/* modules
+make check
+
+# Individual targets
+make test        # all tests
+make test-race   # with race detector
+make vet         # go vet across all modules
+make lint        # golangci-lint across all modules
+make tidy        # go work sync
+```
+
+### Coverage
 
 ```bash
 # All pkg modules

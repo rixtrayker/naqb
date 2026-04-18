@@ -145,28 +145,23 @@ func readPrompt(bookDir, name string) (string, error) {
 
 ## Sprint 1: Critical Wiring + Build Integrity (Half day)
 
-### S1.1 — Fix `make check` to cover all `pkg/` modules [GAP 15]
+### S1.1 — Fix `make check` to cover all `pkg/` modules [GAP 15] ✅ DONE
 
 **File:** `Makefile`
 
-**Problem:** `go test ./...` only tests `internal/`. The 12 `pkg/` modules
-each have their own `go.mod` and are only tested via `go.work`.
+**What changed:**
+- `make check` — now builds, vets, and tests root + all 11 `pkg/*` modules
+- `make test` / `make test-v` / `make test-race` — iterate all modules
+- `make vet` / `make lint` / `make cover` — iterate all modules
+- `make tidy` — uses `go work sync` instead of per-module `go mod tidy`
 
-**Fix:** Update `make check` to iterate workspace modules:
-```makefile
-check:
-	go build ./...
-	go vet ./...
-	go test ./...
-	@for dir in pkg/*/; do \
-		if [ -f "$$dir/go.mod" ]; then \
-			echo "Testing $$dir..."; \
-			(cd "$$dir" && go test ./...) || exit 1; \
-		fi; \
-	done
-```
-
-**Also add:** `make check-all` alias that does the same thing.
+**Also delivered:** Full GitHub Actions CI/CD pipeline:
+- `.github/workflows/ci.yml` — test matrix (Go 1.26 + stable), race detector, shuffle, `go work sync` check, build, golangci-lint
+- `.github/workflows/security.yml` — govulncheck, CodeQL, gosec (non-blocking)
+- `.github/workflows/release.yml` — GoReleaser on `v*` tags
+- `.goreleaser.yml` — multi-binary releases for `nqb`, `naqb-style`, `nqb-mcp`
+- `.github/dependabot.yml` — weekly updates for root + all `pkg/*` modules + actions
+- `.golangci.yml` — linter config (errcheck/gocritic disabled for legacy code, to be re-enabled incrementally)
 
 ---
 
@@ -281,7 +276,7 @@ Add line to architecture map:
 
 ### S1 Checklist
 
-- [ ] S1.1 `make check` covers `pkg/` modules
+- [x] S1.1 `make check` covers `pkg/` modules + GitHub Actions CI/CD pipeline
 - [ ] S1.2 Migration 006 for CASCADE fix
 - [ ] S1.3 Wire ContextDebt into executor
 - [ ] S1.4 Register RESEARCH/SYNTHESIZE stages

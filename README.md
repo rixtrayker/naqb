@@ -3,9 +3,10 @@
 > **نقب** (naqb) — *to excavate, to tunnel through, to investigate deeply.*
 > An archaeologist نقّب عن الآثار. A writer نقّب في الأفكار.
 
-[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/build-passing-brightgreen)](#)
+[![CI](https://github.com/rixtrayker/naqb/actions/workflows/ci.yml/badge.svg)](https://github.com/rixtrayker/naqb/actions/workflows/ci.yml)
+[![Security](https://github.com/rixtrayker/naqb/actions/workflows/security.yml/badge.svg)](https://github.com/rixtrayker/naqb/actions/workflows/security.yml)
 
 > From spark to shelf — CLI that orchestrates LLMs through the full book lifecycle:
 > interview → outline → write → QA → export. Built for depth thinkers.
