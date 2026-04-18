@@ -1,0 +1,144 @@
+version: 2
+updates:
+  # Root Go module
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    open-pull-requests-limit: 10
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  # pkg/* Go modules
+  - package-ecosystem: gomod
+    directory: /pkg/agent
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/agents
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/booktools
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/config
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/llm
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/log
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/pipeline
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/research
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/runtime
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/search
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/wordcount
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /pkg/youtube
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "go"]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "ci"]
+    groups:
+      actions:
+        patterns: ["*"]

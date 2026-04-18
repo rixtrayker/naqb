@@ -1,0 +1,73 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck (root)
+        run: govulncheck ./...
+
+      - name: Run govulncheck (pkg modules)
+        run: |
+          for mod in pkg/*/; do
+            (cd "$mod" && govulncheck ./...)
+          done
+
+  gosec:
+    name: gosec
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run gosec (root)
+        uses: securego/gosec@v2
+        with:
+          args: ./...
+
+      - name: Run gosec (pkg modules)
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          for mod in pkg/*/; do
+            (cd "$mod" && gosec ./...)
+          done
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: go
+          config-file: .github/codeql/codeql-config.yml
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4

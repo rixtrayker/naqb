@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go:
+          - "1.26"
+          - "stable"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Verify dependencies
+        run: |
+          go mod verify
+          go mod download
+          for mod in pkg/*/; do
+            (cd "$mod" && go mod verify && go mod download)
+          done
+
+      - name: Check go work sync
+        run: |
+          go work sync
+          git diff --exit-code go.mod go.sum go.work.sum
+          for mod in pkg/*/; do
+            git diff --exit-code "$mod/go.mod" "$mod/go.sum"
+          done
+
+      - name: Build
+        run: |
+          go build ./...
+          for mod in pkg/*/; do
+            (cd "$mod" && go build ./...)
+          done
+          go build ./cmd/...
+
+      - name: Run tests (root)
+        run: go test -v -race -shuffle=on -coverprofile=coverage-root.out ./...
+
+      - name: Run tests (pkg modules)
+        run: |
+          for mod in pkg/*/; do
+            name=$(basename "$mod")
+            (cd "$mod" && go test -v -race -shuffle=on -coverprofile=coverage.out ./...)
+            cp "$mod/coverage.out" "coverage-${name}.out"
+          done
+
+      - name: Upload coverage
+        if: matrix.go == 'stable'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage-*.out,./coverage-root.out
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: go vet (root)
+        run: go vet ./...
+
+      - name: go vet (pkg modules)
+        run: |
+          for mod in pkg/*/; do
+            (cd "$mod" && go vet ./...)
+          done
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: --timeout 5m

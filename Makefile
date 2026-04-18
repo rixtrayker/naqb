@@ -42,28 +42,45 @@ install: build
 	cp $(BIN_DIR)/$(BINARY) /usr/local/bin/$(BINARY)
 	@echo "Installed → /usr/local/bin/$(BINARY)"
 
-## check: Gate check — build + vet + test (run before every commit)
+## check: Gate check — build + vet + test all workspace modules (run before every commit)
 check:
 	go build ./...
 	go vet ./...
 	go test ./...
+	@for mod in pkg/*/; do \
+		echo "→ $$mod"; \
+		(cd "$$mod" && go build ./... && go vet ./... && go test ./...) || exit 1; \
+	done
 	@echo "✓ build, vet, and tests all passed"
 
 ## test: Run all tests
 test:
 	go test ./...
+	@for mod in pkg/*/; do \
+		(cd "$$mod" && go test ./...) || exit 1; \
+	done
 
 ## test-v: Run all tests with verbose output
 test-v:
 	go test -v ./...
+	@for mod in pkg/*/; do \
+		(cd "$$mod" && go test -v ./...) || exit 1; \
+	done
 
 ## test-race: Run all tests with race detector
 test-race:
 	go test -race ./...
+	@for mod in pkg/*/; do \
+		(cd "$$mod" && go test -race ./...) || exit 1; \
+	done
 
 ## cover: Run tests with coverage and open report
 cover:
 	go test -coverprofile=coverage.out ./...
+	@for mod in pkg/*/; do \
+		name=$$(basename "$$mod"); \
+		(cd "$$mod" && go test -coverprofile=coverage-$$name.out ./...) || exit 1; \
+	done
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report → coverage.html"
 	open coverage.html 2>/dev/null || xdg-open coverage.html 2>/dev/null || echo "Open coverage.html in your browser"
@@ -76,14 +93,20 @@ cover-text:
 ## vet: Run go vet
 vet:
 	go vet ./...
+	@for mod in pkg/*/; do \
+		(cd "$$mod" && go vet ./...) || exit 1; \
+	done
 
 ## lint: Run golangci-lint (install: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
 lint:
 	golangci-lint run ./...
+	@for mod in pkg/*/; do \
+		(cd "$$mod" && golangci-lint run ./...) || exit 1; \
+	done
 
-## tidy: Run go mod tidy
+## tidy: Synchronize workspace modules
 tidy:
-	go mod tidy
+	go work sync
 
 ## clean: Remove build artifacts and coverage files
 clean:

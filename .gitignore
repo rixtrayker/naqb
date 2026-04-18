@@ -5,6 +5,7 @@
 # Build output
 bin/
 dist/
+nqb
 
 # Test coverage
 coverage.out
@@ -18,6 +19,7 @@ coverage.html
 # Editor
 .idea/
 .vscode/
+.claude/settings.local.json
 *.swp
 *.swo
 *~
