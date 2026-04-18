@@ -96,9 +96,18 @@ stages:
 }
 
 func stripMarkdownFences(s string) string {
-	s = strings.TrimPrefix(s, "```yaml")
-	s = strings.TrimPrefix(s, "```yml")
-	s = strings.TrimPrefix(s, "```")
-	s = strings.TrimSuffix(s, "```")
+	s = strings.TrimSpace(s)
+	// Strip opening fence with optional language tag
+	if strings.HasPrefix(s, "```") {
+		if i := strings.IndexByte(s, '\n'); i >= 0 {
+			s = s[i+1:]
+		}
+	}
+	// Strip closing fence — look for it on its own line first
+	if i := strings.Index(s, "\n```"); i >= 0 {
+		s = s[:i]
+	} else {
+		s = strings.TrimSuffix(s, "```")
+	}
 	return strings.TrimSpace(s)
 }

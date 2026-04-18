@@ -174,10 +174,20 @@ func (t *PlanAndExecuteTool) FantasyTool() fantasy.AgentTool {
 }
 
 func stripMarkdownFencesPlan(s string) string {
-	s = strings.TrimPrefix(s, "```yaml")
-	s = strings.TrimPrefix(s, "```yml")
-	s = strings.TrimPrefix(s, "```")
-	s = strings.TrimSuffix(s, "```")
+	s = strings.TrimSpace(s)
+	// Strip opening fence with optional language tag (e.g. ```json, ```yaml)
+	if strings.HasPrefix(s, "```") {
+		if i := strings.IndexByte(s, '\n'); i >= 0 {
+			s = s[i+1:]
+		}
+	}
+	// Strip closing fence — look for it on its own line first,
+	// then fall back to a simple suffix trim.
+	if i := strings.Index(s, "\n```"); i >= 0 {
+		s = s[:i]
+	} else {
+		s = strings.TrimSuffix(s, "```")
+	}
 	return strings.TrimSpace(s)
 }
 
