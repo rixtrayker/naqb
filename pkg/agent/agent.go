@@ -84,6 +84,10 @@ func New(provider fantasy.Provider, modelID string, bookDir string, cfg *config.
 //
 // If a session store is wired in, all messages and token counts are persisted.
 func (a *Agent) Run(ctx context.Context, task, sessionID string, onDelta func(string)) (*RunResult, error) {
+	if a.provider == nil {
+		return nil, fmt.Errorf("agent: no provider configured")
+	}
+
 	// ── Model ────────────────────────────────────────────────────────────────
 	model, err := a.provider.LanguageModel(ctx, a.modelID)
 	if err != nil {
