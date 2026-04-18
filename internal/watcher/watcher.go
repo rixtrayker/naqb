@@ -2,6 +2,7 @@
 package watcher
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -14,8 +15,8 @@ import (
 type RebuildFunc func(path string) error
 
 // Watch watches the book directory for markdown changes and calls rebuild.
-// It blocks until the context is done or an error occurs.
-func Watch(bookDir string, rebuild RebuildFunc, out io.Writer) error {
+// It blocks until the context is cancelled, the watcher errors, or an unrecoverable error occurs.
+func Watch(ctx context.Context, bookDir string, rebuild RebuildFunc, out io.Writer) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("creating watcher: %w", err)
@@ -38,6 +39,8 @@ func Watch(bookDir string, rebuild RebuildFunc, out io.Writer) error {
 
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case event, ok := <-w.Events:
 			if !ok {
 				return nil

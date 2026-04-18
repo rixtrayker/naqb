@@ -1,4 +1,4 @@
-# نقب — nqb
+# نقب — Naqb
 
 > **نقب** (naqb) — *to excavate, to tunnel through, to investigate deeply.*
 > An archaeologist نقّب عن الآثار. A writer نقّب في الأفكار.
@@ -7,12 +7,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen)](#)
 
-> From spark to shelf — CLI that orchestrates Claude through the full book lifecycle:
+> From spark to shelf — CLI that orchestrates LLMs through the full book lifecycle:
 > interview → outline → write → QA → export. Built for depth thinkers.
 
-`nqb` is an LLM-powered CLI tool for writing structured, ADHD-friendly books.
+`Naqb` (نقب) is an LLM-powered CLI tool for writing structured, ADHD-friendly books.
 It manages the full lifecycle: interview → outline → context → write → QA → export.
 Primary focus: **Arabic RTL books**, with full support for English/technical books too.
+
+**Default LLM:** MiniMax M2.5 via OpenRouter (free tier available). Also supports Anthropic and AWS Bedrock.
 
 ---
 
@@ -20,6 +22,7 @@ Primary focus: **Arabic RTL books**, with full support for English/technical boo
 
 - [Install](#install)
 - [Quick Start](#quick-start)
+- [Providers](#providers)
 - [Vault System](#vault-system)
 - [TUI — Home Screen](#tui--home-screen)
 - [TUI — Book View](#tui--book-view)
@@ -46,9 +49,12 @@ go build -o nqb ./cmd/nqb
 # Move to PATH
 mv nqb /usr/local/bin/nqb
 
-# Set your Anthropic API key
+# Set your API key (OpenRouter/MiniMax default)
 nqb config --set-key
-# or: export ANTHROPIC_API_KEY=sk-ant-...
+# or: export OPENROUTER_API_KEY=sk-or-v1-...
+
+# Alternative: use Anthropic directly
+export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ### Export dependencies
@@ -83,10 +89,10 @@ nqb init
 # Create a book inside your vault (~/Projects/naqb/)
 nqb init --vault
 
-# Open the current directory as a book project
+# Open interactive agent chat for the current project
 nqb .
 
-# Open a specific book from your vault by name
+# Open a specific book in the chapter list TUI
 nqb open my-arabic-book
 ```
 
@@ -104,6 +110,50 @@ nqb open my-book-name
 # 4. Export when ready
 nqb export --format pdf
 nqb export --format all
+```
+
+---
+
+## Providers
+
+nqb supports multiple LLM providers:
+
+| Provider | Type | Default Model | Setup |
+|----------|------|---------------|-------|
+| OpenRouter (default) | OpenAI-compatible | MiniMax M2.5 | `OPENROUTER_API_KEY` |
+| Anthropic | Native SDK | Claude Sonnet 4-6 | `ANTHROPIC_API_KEY` |
+| AWS Bedrock | Converse API | MiniMax M2.1 | IAM credentials |
+
+### Configuration
+
+```yaml
+# ~/.naqb/config.yaml
+default_provider: openrouter
+
+providers:
+  openrouter:
+    type: openrouter
+    api_key: "sk-or-v1-..."
+    base_url: "https://openrouter.ai/api/v1"
+
+  anthropic:
+    type: anthropic
+    api_key: "sk-ant-..."
+
+  bedrock:
+    type: bedrock
+    api_key: "AKIAIOSFODNN7EXAMPLE"
+    secret_access_key: "wJalrXUtnFEMI/..."
+    region: "us-east-1"
+```
+
+Override per-book in `book.yaml`:
+```yaml
+llm:
+  write_provider: openrouter
+  write_model: minimax/minimax-m2.5
+  qa_provider: anthropic
+  qa_model: claude-sonnet-4-6
 ```
 
 ---
@@ -127,13 +177,21 @@ nqb vault add work ~/work/books   # Register ~/work/books as vault "work"
 nqb vault remove work       # Unregister (does NOT delete files)
 ```
 
-### `nqb .` — open current directory
+### `nqb .` — interactive agent chat
 
 ```bash
 cd ~/my-arabic-research
-nqb .         # Opens book TUI if book.yaml exists
-              # Asks "Initialize here?" if it doesn't
+nqb .         # Opens agent chat if book.yaml exists + API key available
+              # Falls back to BookView if no Fantasy provider
+              # Asks "Initialize here?" if no book.yaml
 ```
+
+The agent chat is an interactive session where you can:
+- Ask questions about your book project (status, word counts, chapter summaries)
+- Say "write chapter N" — the agent calls `spawn_write` to run it in the background
+- Say "run QA on chapter N" — background QA with results streamed back
+- Run multiple background tasks in parallel (write + research)
+- Press **Ctrl+T** to toggle the task panel showing active/completed tasks
 
 ---
 
@@ -163,7 +221,7 @@ Pressing `n` launches `nqb init` inline and returns to the home screen when done
 
 ## TUI — Book View
 
-Opens when you select a project from home or run `nqb .` / `nqb open <name>`:
+Opens when you select a project from home or run `nqb open <name>`:
 
 ```
   نقب  كتاب التاريخ العربي
@@ -206,31 +264,89 @@ Press `?` at any time in the book view for the full keybinding reference.
 
 ## CLI Commands
 
-All commands also work directly from the terminal (without entering the TUI):
+All commands work directly from the terminal. Commands are organized into groups —
+run `nqb --help` to see the full grouped output. Most commands have short aliases
+(shown in parentheses).
 
-| Command | Description |
-|---------|-------------|
-| `nqb` | Open TUI home screen |
-| `nqb .` | Open current dir as book (or prompt init) |
-| `nqb open <name>` | Open book from vault by name or path |
-| `nqb init` | Initialize new book via LLM interview |
-| `nqb context --chapter N` | Build context file for chapter N |
-| `nqb write --chapter N` | Write chapter N with Claude Sonnet (spinner) |
-| `nqb write --chapter N --stream` | Write with live streaming output |
-| `nqb qa --chapter N` | Deterministic + LLM QA audit |
-| `nqb qa --chapter N --deterministic-only` | Skip LLM audit |
-| `nqb pipeline --chapter N` | Run context→write→qa for chapter N |
+### Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--verbose` / `-v` | Show debug info (LLM requests, token counts, timing) |
+| `--quiet` / `-q` | Suppress non-essential output |
+| `--no-color` | Disable color output (also respects `NO_COLOR` env var) |
+
+### Writing
+
+| Command (aliases) | Description |
+|-------------------|-------------|
+| `nqb init` (`i`, `new`) | Initialize new book via LLM interview |
+| `nqb write` (`w`) `--chapter N` | Write chapter N with streaming LLM |
+| `nqb context` (`ctx`) `--chapter N` | Build context file for chapter N |
+| `nqb pipeline` (`pipe`, `p`) `--chapter N` | Run context→write→qa for chapter N |
 | `nqb pipeline --all` | Run full pipeline for all chapters |
-| `nqb export --format pdf` | Export to PDF (RTL Arabic via XeLaTeX) |
-| `nqb export --format all` | Export all formats |
+| `nqb fix` (`f`) `--chapter N` | Rewrite chapter to fix QA issues |
+| `nqb chat` (`c`) `[--chapter N]` | Open chat REPL with book context |
+
+### Quality
+
+| Command (aliases) | Description |
+|-------------------|-------------|
+| `nqb qa` (`check`) `--chapter N` | Deterministic + LLM QA audit |
+| `nqb qa --deterministic-only` | Skip LLM audit |
+| `nqb research` (`res`) `--chapter N` | Run Scout→Explorer→Scribe pipeline |
+| `nqb research --deep` | Deep research with Gemini grounding |
+| `nqb index` (`idx`) | Index chapters into local vector store |
+
+### Publishing
+
+| Command (aliases) | Description |
+|-------------------|-------------|
+| `nqb export` (`exp`) `--format pdf` | Export to PDF (RTL Arabic via XeLaTeX) |
+| `nqb export --format all` | Export all formats (pdf, epub, docx, web) |
 | `nqb watch` | Watch for changes, auto-rebuild exports |
-| `nqb chat` | Open Opus chat REPL with book context |
-| `nqb chat --chapter N` | Chat focused on chapter N |
-| `nqb status` | Chapter progress table + git log |
-| `nqb config` | Show global config |
-| `nqb config --set-key` | Set Anthropic API key |
-| `nqb vault list/add/remove` | Manage vaults |
-| `nqb completion bash\|zsh\|fish` | Shell completions |
+| `nqb status` (`st`, `info`) | Chapter progress table + git log |
+
+### Management
+
+| Command (aliases) | Description |
+|-------------------|-------------|
+| `nqb open` (`o`) `<name>` | Open book from vault by name or path |
+| `nqb list` (`ls`) | List all books in the vault |
+| `nqb list chapters` (`ls ch`) | List chapters with status and word count |
+| `nqb batch` (`b`) `enqueue --chapter N` | Add a chapter job to the queue |
+| `nqb batch status` (`b st`) | Show job queue status |
+| `nqb batch run [--workers N]` | Start background job worker |
+| `nqb batch cancel --job-id <id>` | Cancel a queued job |
+| `nqb session` (`sess`) `list` | List recent agent sessions |
+| `nqb session show <id>` | Show session messages |
+| `nqb session delete <id>` | Delete a session |
+| `nqb vault list` (`ls`) | Show all registered vaults |
+| `nqb vault add <name> <path>` | Register a directory as a vault |
+| `nqb vault remove` (`rm`) `<name>` | Unregister a vault |
+| `nqb sync gdocs` | Push chapters to Google Doc |
+| `nqb import` | Import wizard (notes, drafts, templates) |
+| `nqb import gdoc --url <URL>` | Import from Google Docs |
+
+### Configuration
+
+| Command (aliases) | Description |
+|-------------------|-------------|
+| `nqb config` (`cfg`) | Show global config |
+| `nqb config --set-key` | Set API key |
+| `nqb keys` (`k`) | Show all API key statuses (set/missing, source) |
+| `nqb keys --set <NAME>` | Save an API key to macOS Keychain |
+| `nqb setup` | Run the first-time setup wizard |
+| `nqb models` (`m`) | List available models and pricing |
+| `nqb mcp` | Start MCP server |
+
+### Utility
+
+| Command (aliases) | Description |
+|-------------------|-------------|
+| `nqb version` (`v`) | Print version, Go runtime, and build info |
+| `nqb doctor` (`doc`) | Check system health: API keys, deps, book, DB |
+| `nqb completion bash\|zsh\|fish` | Shell completion scripts |
 
 ---
 
@@ -404,16 +520,17 @@ my-book/
 │   ├── ch-01.md
 │   └── ch-02.md
 ├── contexts/               ← assembled single-shot context per chapter (gitignored)
-├── research/               ← drop your notes, PDFs, references here
+├── research/              ← LLM-generated research notes (gitignored)
+├── .naqb/                 ← vector store index (gitignored)
 ├── assets/
 │   └── themes/
 │       ├── light.css
 │       └── dark.css
-├── output/                 ← generated files (gitignored)
+├── output/                ← generated files (gitignored)
 │   ├── book.pdf
 │   ├── book.epub
 │   └── web/
-└── pipeline-report.md      ← QA results and run summaries
+└── pipeline-report.md    ← QA results and run summaries
 ```
 
 ---
@@ -425,18 +542,19 @@ cmd/nqb/main.go              Entry point — cobra root + dynamic completions
 internal/
   vault/                     Vault registry (~/.naqb/vault.yaml), project scanning
   config/                    GlobalConfig, BookConfig, Template definitions
-  llm/                       Anthropic SDK wrapper (streaming + non-streaming)
+  llm/                       Multi-provider LLM client (OpenRouter, Anthropic, Bedrock)
   agents/
     planner.go               Stage 0: interview answers → BookConfig + outline.md
     context_builder.go       Stage 1: golden prompt assembler → contexts/ch-XX.md
     writer.go                Stage 2: context file → LLM → chapters/ch-XX.md
     qa.go                    Stage 3: deterministic checks + LLM semantic audit
-  pipeline/                  Orchestrator (stages 1-3) + git auto-commit
+  research/                  Scout→Explorer→Scribe research pipeline
+  pipeline/                  Legacy orchestrator + DAG engine (dag/executor/gate/debt/template)
   exporter/                  Pandoc wrappers: PDF (RTL), EPUB, DOCX, Web
   watcher/                   fsnotify with 500ms debounce → trigger rebuild
   tui/
     keys.go                  Central keybinding definitions + hint renderer
-    home.go                  VSCode-style project picker
+    home.go                  VSCode-style project picker (fuzzy search)
     book_view.go             Book TUI: sidebar + slash command palette
     outline_editor.go        Visual chapter outline editor
     preview.go               glamour markdown renderer (scrollable viewport)
@@ -444,16 +562,39 @@ internal/
     init_chat.go             Multi-step init form with template picker
     spinner.go               Bubble Tea spinner wrapper
   commands/                  One file per CLI subcommand
+  db/                        SQLite (sessions, messages, jobs, claims, knowledge graph, epistemic state)
+  searchutil/                NormalizeContent, TokenizeContent, ContentSignature, JaccardSimilarity
+  chunker/                   Recursive text splitter with Arabic separators (،, ؛, ۔)
+  embedding/                 Embedder interface: OpenAI-compat, Voyage AI, Ollama, Bedrock stub
+  rerank/                    NullReranker + CohereReranker (composite score: 0.6×model + 0.3×base + 0.1×position)
+  store/
+    interface.go             VectorStore, KeywordStore, HybridStore interfaces
+    keyword/bleve.go         BM25 via Bleve (Arabic lang/ar analyzer)
+    vector/{chroma,lancedb,zilliz}.go  Vector backends (Chroma functional, others stubbed)
+    hybrid.go                Concurrent dispatch + dedup + rerank + MMR (λ=0.7)
+    util/{merge,mmr}.go      MergeBySignature, ApplyMMR
+  knowledge/                 Claim (8 types) + Graph (8 relations) + EpistemicState + IngestDocument
+  context/
+    stack.go                 ContextLayer (pos 0-5), ContextStack
+    braid.go                 BraidedField (AGREEMENT/CONFLICT/RESONANCE/SILENCE)
+    processor.go             RunStrands: parallel strand goroutines → synthesis
+    arabic/layers.go         11 standard Arabic analytical layers
+  style/                     StyleImage (linguistic/structural/rhetorical/voice/arabic profiles)
+                             extract / apply (PromptMode, PostprocessMode) / blend / diff / registry
+cmd/
+  nqb-mcp/main.go            Standalone MCP server
+  naqb-style/main.go         Style engine CLI (extract/apply/blend/diff/list/fork/fingerprint)
 ```
 
-### LLM Model Assignments
+### LLM Model Assignments (Default: OpenRouter)
 
-| Stage | Model | Reason |
-|-------|-------|--------|
-| `nqb init` interview | `claude-haiku-4-5` | Fast, interactive |
-| `nqb write` drafting | `claude-sonnet-4-6` | Best long-form quality |
-| `nqb qa` semantic audit | `claude-sonnet-4-6` | Good reasoning |
-| `nqb chat` editing REPL | `claude-opus-4-6` | Deep edits, nuanced |
+| Stage | Default Model | Alternatives |
+|-------|---------------|--------------|
+| `nqb init` interview | MiniMax M2.5 | claude-haiku, claude-sonnet |
+| `nqb write` drafting | MiniMax M2.5 | claude-sonnet, any OpenAI-compatible |
+| `nqb qa` semantic audit | MiniMax M2.5 | claude-sonnet |
+| `nqb chat` editing REPL | Claude Opus 4-5 (via OpenRouter) | claude-opus (native) |
+| `nqb research` | MiniMax M2.5 | Any model |
 | Context assembly | No LLM | Pure Go templating |
 
 ### Git Auto-Commits
@@ -479,15 +620,36 @@ export(pdf): PDF generated
 - [x] Outline editor (reorder, rename, save)
 - [x] Chapter preview with glamour
 - [x] Init form with template picker (Arabic research / CS / General)
+- [x] Multi-provider LLM support (OpenRouter, Anthropic, Bedrock)
 - [x] Write, QA, Export, Watch, Chat, Status, Config commands
+- [x] Research pipeline (Scout→Explorer→Scribe)
+- [x] Google Docs sync/import
+- [x] Batch job queue
+- [x] Agent sessions
+- [x] Vector store indexing
+- [x] MCP server
 - [x] Carapace shell completions
 - [x] Keybinding hints on all screens
 
+### Phase 4 ✅ (WeKnora Integration — scholarly text intelligence)
+- [x] BM25 keyword store via Bleve (Arabic `lang/ar` analyzer)
+- [x] Vector store interface (Chroma HTTP client; LanceDB/Zilliz stubs)
+- [x] HybridStore: concurrent dispatch + dedup by content signature + MMR diversity
+- [x] Chunker: recursive splitter with Arabic separators and protected patterns (hadith chains)
+- [x] Embedder: OpenAI-compatible (Voyage AI, Jina, Ollama), Bedrock stub
+- [x] Cross-encoder reranker: composite score + NullReranker fallback
+- [x] Knowledge graph: 8 claim types, 8 relation types, BFS shortest path
+- [x] EpistemicState: thesis + research questions + established claims, injected into agent prompts
+- [x] Ingestion pipeline: chunk → contextualize → embed → upsert vector + keyword stores
+- [x] DAG pipeline engine: topological sort, parallel batch execution, HUMAN_GATE blocking
+- [x] Context stacks: 11 Arabic analytical layers, BraidedField AGREEMENT/CONFLICT/RESONANCE/SILENCE
+- [x] Style engine: extract / apply (prompt + postprocess modes) / blend / diff / registry
+- [x] `naqb-style` CLI binary
+- [x] 2 new agent tools: `knowledge_search`, `grep_chunks`
+
 ### Phase 2 (planned)
 - [ ] Word count progress bars per chapter (NaNoWriMo-style)
-- [ ] Research automation (Scout/Explorer/Scribe agents)
 - [ ] MkDocs Material web export (RTL, light/dark)
-- [ ] Multi-LLM option (opt-in Gemini, GPT-4o)
 - [ ] VS Code / Zed extension for inline chapter editing
 - [ ] Chapter diff view (before/after edits)
 - [ ] Export themes (custom CSS for EPUB/Web)

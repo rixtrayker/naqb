@@ -16,7 +16,8 @@ func MCPCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "Start the nqb MCP server over stdio",
-		Long: `Starts the نقب MCP server using stdio transport.
+		GroupID: "config",
+		Long: `Start the نقب MCP server using stdio transport.
 
 Add to Claude Desktop's claude_desktop_config.json:
 

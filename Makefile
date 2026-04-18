@@ -3,9 +3,12 @@
 ## Usage:
 ##   make build        Build the nqb binary to ./bin/nqb
 ##   make install      Build and install to /usr/local/bin/nqb
+##   make check        Gate check: build + vet + test (run before every commit)
 ##   make test         Run all tests
 ##   make test-v       Run all tests with verbose output
+##   make test-race    Run all tests with race detector
 ##   make cover        Run tests and open coverage report in browser
+##   make cover-text   Run tests and print per-package coverage summary
 ##   make vet          Run go vet
 ##   make lint         Run golangci-lint (requires: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
 ##   make tidy         Run go mod tidy
@@ -22,9 +25,9 @@ LOG_FILE := $(HOME)/.naqb/nqb.log
 
 # Build flags
 VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS  := -ldflags "-X main.version=$(VERSION) -s -w"
+LDFLAGS  := -ldflags "-X github.com/amr/naqb/internal/commands.version=$(VERSION) -s -w"
 
-.PHONY: all build install test test-v cover vet lint tidy clean run debug log log-clear help
+.PHONY: all build install check test test-v test-race cover cover-text vet lint tidy clean run debug log log-clear help
 
 all: build
 
@@ -38,6 +41,13 @@ build:
 install: build
 	cp $(BIN_DIR)/$(BINARY) /usr/local/bin/$(BINARY)
 	@echo "Installed → /usr/local/bin/$(BINARY)"
+
+## check: Gate check — build + vet + test (run before every commit)
+check:
+	go build ./...
+	go vet ./...
+	go test ./...
+	@echo "✓ build, vet, and tests all passed"
 
 ## test: Run all tests
 test:
@@ -57,6 +67,11 @@ cover:
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report → coverage.html"
 	open coverage.html 2>/dev/null || xdg-open coverage.html 2>/dev/null || echo "Open coverage.html in your browser"
+
+## cover-text: Run tests with coverage and print per-package summary
+cover-text:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out | grep -E "(total|[0-9]+\.[0-9]+%)"
 
 ## vet: Run go vet
 vet:

@@ -33,18 +33,20 @@ func LoadRules(bookDir string) (*Rules, error) {
 
 ## Storage Format Rules
 
-No database. All data stays in plain files, git-tracked.
+Book content stays in plain files, git-tracked. Agent state lives in SQLite.
 
 | Format | Used for | Who writes it |
 |---|---|---|
 | YAML | Config, metadata, book manifest, vault registry | Humans + `nqb init` |
 | Markdown | Chapters, research notes, context files | LLM + Scribe |
-| JSON | Logs, session history, generated/streamed data | Machines only |
+| SQLite | Agent sessions, job queue (`~/.naqb/naqb.db`) | `internal/db/` only |
 
-- Never introduce SQLite, BoltDB, or any embedded DB without a concrete pain point
-- If a new data type fits in a file, use a file
-- Chat session logs → JSON files in `.naqb/sessions/` (if/when added)
+- Book files (chapters, contexts, research notes) → always plain Markdown
+- SQLite is the single exception: sessions + job queue need atomic state transitions
+- `~/.naqb/naqb.db` is **not** per-book — it is global (shared across all books)
+- Per-book data that fits in a file uses a file; only volatile/indexed state goes to DB
 - Vault stays YAML until 50+ projects make it slow (not yet)
+- `modernc.org/sqlite` — PRAGMA WAL + FK must be set via `db.Exec()` after `sql.Open()`, not DSN
 
 ## Provider Override Levels
 

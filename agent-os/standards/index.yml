@@ -1,27 +1,59 @@
 # Agent OS Standards Index
 
-global:
-  testing:
-    description: go build ./... && go test ./... must pass after every change before committing
-
 agents:
   llm-agents:
     description: Go template prompts, graceful LLM output fallbacks, per-stage model routing, semantic output validation
+
+booktools:
+  tool-interface:
+    description: How to implement runtime.Tool, wire tools into the agent, and test them without a full runtime
 
 config:
   config-hierarchy:
     description: 3-tier config (global/book/rules), fail-safe defaults for optional config, provider override levels
 
+context:
+  context-stacks:
+    description: Named versioned composable stacks — layer positions (0–5), braided field model, braid point types, conflict resolution policies, 12 standard stacks, 10 Arabic-specific layers
+  retrieval-patterns:
+    description: 7 mandatory retrieval rules — static caching, contextual chunking, multi-vector stores, HyDE for synthesis, semantic memory dedup, late chunking for classical Arabic, progressive stack disclosure
+
+future:
+  product-vision:
+    description: Scholarly text intelligence engine — three modes (autopilot/copilot/chat), nine pipeline templates, input types, tech stack decisions (WeKnora adoption table)
+  skills-plan:
+    description: 14 Claude skills to integrate — use cases, decisions (Composio auth, Gemini key, one master Google Doc), and 3-wave implementation order
+  weknora-integration:
+    description: WeKnora adoption decisions — what to copy (chunker, embedding clients, rerank, searchutil, MMR, pgvector schema), what to reference (hybrid retrieval pattern, tool names, ReAct loop), what to build custom (Arabic NLP, DAG pipeline, style engine, epistemic state, book ontology)
+  zk-integration:
+    description: Deferred zk runtime integration — prerequisites (JSON output, stdin piping, RTL support), design, and release gate checklist
+
+global:
+  commit-protocol:
+    description: Pre-commit mandatory checks — make check, go vet, tests, and doc updates
+  documentation-rule:
+    description: Required documentation updates for every type of code change
+  testing:
+    description: Commit gate (build+vet+test), per-package coverage targets, test patterns (table-driven, t.TempDir, skip-on-no-creds)
+
+knowledge:
+  epistemic-state:
+    description: Persistent project epistemic state — schema, build sources, five lenses (EXPLAIN/SUMMARIZE/CRITIQUE/REWRITE/CORPUS-ADD), lens accumulation rule, token architecture
+  knowledge-graph:
+    description: Claim as atomic unit, mandatory provenance chain (book→sentence→claim), claim schema + 8 relation types, three-tier retrieval with RRF, contextual chunking rule
+  vector-store:
+    description: Vector DB decision — Zilliz (primary), LanceDB (2nd), Chroma (3rd). BM25 via embedded Bleve. VectorStore interface, HybridStore (concurrent vector+keyword→rerank→MMR), collection schema, config pattern
+
 pipeline:
+  dag-engine:
+    description: DAG pipeline engine — stage types (DECOMPOSE→QA), HUMAN_GATE rules (blocking/advisory), model routing per stage type, template YAML format, context debt rule
   pipeline-stages:
     description: Stage interface design, git commit prefix scheme (draft/reviewed/conflict/gap), conditional stage composition
+
+style:
+  style-engine:
+    description: Style image as portable YAML artifact — five dimensions, naqb-style binary commands, Arabic-specific mandatory rules (diacritical policy, register boundary, balāgha patterns), two application modes
 
 tui:
   tui-patterns:
     description: Command registry + alias checklist, centralized keybindings in keys.go, sidebar tab extension pattern
-
-future:
-  zk-integration:
-    description: Deferred zk runtime integration — prerequisites (JSON output, stdin piping, RTL support), design, and release gate checklist
-  skills-plan:
-    description: 14 Claude skills to integrate — use cases, decisions (Composio auth, Gemini key, one master Google Doc), and 3-wave implementation order
