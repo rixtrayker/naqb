@@ -1,0 +1,10 @@
+providers:
+    bedrock:
+        type: bedrock
+        region: eu-central-1
+    openrouter:
+        type: openrouter
+        base_url: https://openrouter.ai/api/v1
+default_provider: bedrock
+default_model: minimax.minimax-m2.1
+setup_version: 0.5.0
