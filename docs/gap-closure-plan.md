@@ -129,6 +129,30 @@ func readPrompt(bookDir, name string) (string, error) {
 
 ---
 
+### S0.8 — Sanitize `import` file paths (gosec G703)
+
+**File:** `internal/commands/import.go:155-276`
+
+**Fix:** Validate `src` resolves inside the book directory or home folder before read/write.
+
+---
+
+### S0.9 — Validate `envFile` path in `keycheck` (gosec G703)
+
+**File:** `internal/keycheck/keycheck.go:165`
+
+**Fix:** Resolve and prefix-check `envFile` against `bookDir` before `os.WriteFile`.
+
+---
+
+### S0.10 — Annotate acceptable `exec.Command` calls (gosec G204/G702)
+
+**Files:** `config.go:119`, `exporter.go:68`, `status.go:113,122`, `sidebar.go:266`, `keycheck.go:175,196`
+
+**Fix:** Add `//nolint:gosec // <justification>` after risk review.
+
+---
+
 ### S0 Checklist
 
 - [ ] S0.1 UTF-8 truncation fix + test
@@ -138,8 +162,11 @@ func readPrompt(bookDir, name string) (string, error) {
 - [ ] S0.5 Fix prompt directory lookup
 - [ ] S0.6 Fix indentation
 - [ ] S0.7 Fix misleading description
+- [ ] S0.8 Sanitize `import` file paths (gosec G703)
+- [ ] S0.9 Validate `envFile` path in `keycheck` (gosec G703)
+- [ ] S0.10 Annotate acceptable `exec.Command` calls (gosec G204/G702)
 - [ ] `make check` passes
-- [ ] Commit: `fix: close 7 production bugs (UTF-8, hardcoded IDs, no-op flags)`
+- [ ] Commit: `fix: close 7 production bugs + gosec annotations (Sprint 0)`
 
 ---
 
