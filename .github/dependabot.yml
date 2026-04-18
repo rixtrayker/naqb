@@ -133,8 +133,7 @@ updates:
       go-minor-patch:
         update-types: [minor, patch]
 
-  # GitHub Actions
-  - package-ecosystem: github-actions
+  # GitHub Actions — triggered on push to main and weekly
     directory: /
     schedule:
       interval: weekly
