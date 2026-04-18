@@ -353,11 +353,6 @@ func (m *BookViewModel) View() string {
 	sidebarContent := m.renderSidebar()
 	mainContent := m.renderMain()
 
-	// Apply height to both columns so they fill the vertical space
-	sidebarW := min(24, m.width/3)
-	if sidebarW < 12 {
-		sidebarW = 12
-	}
 	sidebarSized := lipgloss.NewStyle().Height(bodyH).Render(sidebarContent)
 	mainSized := lipgloss.NewStyle().Height(bodyH).Render(mainContent)
 

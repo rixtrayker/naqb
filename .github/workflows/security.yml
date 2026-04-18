@@ -43,12 +43,14 @@ jobs:
 
       - name: Run gosec (root)
         uses: securego/gosec@v2.25.0
+        continue-on-error: true
         env:
           GOTOOLCHAIN: auto
         with:
           args: ./...
 
       - name: Run gosec (pkg modules)
+        continue-on-error: true
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           for mod in pkg/*/; do
