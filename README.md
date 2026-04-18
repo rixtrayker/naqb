@@ -39,13 +39,20 @@ Primary focus: **Arabic RTL books**, with full support for English/technical boo
 
 ## Install
 
-**Requirements:** Go 1.21+, pandoc (for export), XeLaTeX (for PDF)
+**Requirements:** Go 1.26+, pandoc (for export), XeLaTeX (for PDF)
 
 ```bash
 # Clone and build
 git clone https://github.com/rixtrayker/naqb
 cd naqb
+
+# Build all binaries (nqb, naqb-style, nqb-mcp)
+make build
+
+# Or build individually
 go build -o nqb ./cmd/nqb
+go build -o naqb-style ./cmd/naqb-style
+go build -o nqb-mcp ./cmd/nqb-mcp
 
 # Move to PATH
 mv nqb /usr/local/bin/nqb
@@ -538,53 +545,49 @@ my-book/
 
 ## Architecture
 
+`nqb` is a **Go workspace** (`go.work`) with a root module and 11 standalone `pkg/*` modules.
+The root `go.mod` uses `replace` directives for local development; each `pkg/*` has its own `go.mod`.
+
 ```
-cmd/nqb/main.go              Entry point — cobra root + dynamic completions
-internal/
-  vault/                     Vault registry (~/.naqb/vault.yaml), project scanning
-  config/                    GlobalConfig, BookConfig, Template definitions
-  llm/                       Multi-provider LLM client (OpenRouter, Anthropic, Bedrock)
-  agents/
-    planner.go               Stage 0: interview answers → BookConfig + outline.md
-    context_builder.go       Stage 1: golden prompt assembler → contexts/ch-XX.md
-    writer.go                Stage 2: context file → LLM → chapters/ch-XX.md
-    qa.go                    Stage 3: deterministic checks + LLM semantic audit
-  research/                  Scout→Explorer→Scribe research pipeline
-  pipeline/                  Legacy orchestrator + DAG engine (dag/executor/gate/debt/template)
-  exporter/                  Pandoc wrappers: PDF (RTL), EPUB, DOCX, Web
-  watcher/                   fsnotify with 500ms debounce → trigger rebuild
-  tui/
-    keys.go                  Central keybinding definitions + hint renderer
-    home.go                  VSCode-style project picker (fuzzy search)
-    book_view.go             Book TUI: sidebar + slash command palette
-    outline_editor.go        Visual chapter outline editor
-    preview.go               glamour markdown renderer (scrollable viewport)
-    chat.go                  Streaming Opus chat REPL
-    init_chat.go             Multi-step init form with template picker
-    spinner.go               Bubble Tea spinner wrapper
-  commands/                  One file per CLI subcommand
-  db/                        SQLite (sessions, messages, jobs, claims, knowledge graph, epistemic state)
-  searchutil/                NormalizeContent, TokenizeContent, ContentSignature, JaccardSimilarity
-  chunker/                   Recursive text splitter with Arabic separators (،, ؛, ۔)
-  embedding/                 Embedder interface: OpenAI-compat, Voyage AI, Ollama, Bedrock stub
-  rerank/                    NullReranker + CohereReranker (composite score: 0.6×model + 0.3×base + 0.1×position)
-  store/
-    interface.go             VectorStore, KeywordStore, HybridStore interfaces
-    keyword/bleve.go         BM25 via Bleve (Arabic lang/ar analyzer)
-    vector/{chroma,lancedb,zilliz}.go  Vector backends (Chroma functional, others stubbed)
-    hybrid.go                Concurrent dispatch + dedup + rerank + MMR (λ=0.7)
-    util/{merge,mmr}.go      MergeBySignature, ApplyMMR
-  knowledge/                 Claim (8 types) + Graph (8 relations) + EpistemicState + IngestDocument
-  context/
-    stack.go                 ContextLayer (pos 0-5), ContextStack
-    braid.go                 BraidedField (AGREEMENT/CONFLICT/RESONANCE/SILENCE)
-    processor.go             RunStrands: parallel strand goroutines → synthesis
-    arabic/layers.go         11 standard Arabic analytical layers
-  style/                     StyleImage (linguistic/structural/rhetorical/voice/arabic profiles)
-                             extract / apply (PromptMode, PostprocessMode) / blend / diff / registry
 cmd/
-  nqb-mcp/main.go            Standalone MCP server
+  nqb/main.go                Main CLI — cobra root + dynamic completions
   naqb-style/main.go         Style engine CLI (extract/apply/blend/diff/list/fork/fingerprint)
+  nqb-mcp/main.go            Standalone MCP server
+
+pkg/                         ← standalone Go modules (go.work members)
+  runtime/                   LangGraph-style core: StateGraph, CompiledGraph, Checkpointer, Registry
+  agent/                     Fantasy-based agent loop with SessionStore/EpistemicStore interfaces
+  agents/                    Legacy single-shot orchestration (planner, writer, QA, conflict, gap)
+  pipeline/                  Stage registry + DAG executor + swarm + reflection + debt tracking
+  booktools/                 Concrete agent tools: file, research, knowledge, QA, spawn, plan/execute
+  llm/                       Provider interface + OpenRouter/Anthropic/Bedrock implementations
+  config/                    GlobalConfig, BookConfig, Template, Rules
+  research/                  Scout→Explorer→Scribe research pipeline
+  search/                    Vector + keyword store routing layer
+  wordcount/                 Word counting utilities
+  youtube/                   YouTube transcript fetching
+  log/                       Structured logging wrapper
+
+internal/                    ← root-module-only packages
+  commands/                  One file per CLI subcommand
+  tui/                       Bubble Tea screens: home, book view, chat, outline, preview
+  db/                        SQLite persistence (sessions, messages, jobs, claims, knowledge graph)
+  vault/                     Vault registry (~/.naqb/vault.yaml), project scanning
+  exporter/                  Pandoc wrappers: PDF (RTL), EPUB, DOCX, Web
+  store/                     VectorStore, KeywordStore, HybridStore interfaces + implementations
+  knowledge/                 Claim (8 types) + Graph (8 relations) + EpistemicState
+  context/                   Context stacks + BraidedField + Arabic analytical layers
+  style/                     StyleImage engine: extract / apply / blend / diff / registry
+  jobs/                      Async job queue (SQLite-backed) + worker pool
+  chunker/                   Recursive text splitter with Arabic separators
+  embedding/                 Embedder interface: OpenAI-compat, Voyage AI, Ollama
+  rerank/                    NullReranker + CohereReranker
+  searchutil/                NormalizeContent, TokenizeContent, JaccardSimilarity
+  gdocs/                     Google Docs sync client
+  mcpserver/                 MCP server implementation
+  watcher/                   fsnotify with 500ms debounce → trigger rebuild
+  keycheck/                  API key resolution (env → keychain → config)
+  changelog/                 Session report → markdown changelog generator
 ```
 
 ### LLM Model Assignments (Default: OpenRouter)
@@ -647,6 +650,15 @@ export(pdf): PDF generated
 - [x] Style engine: extract / apply (prompt + postprocess modes) / blend / diff / registry
 - [x] `naqb-style` CLI binary
 - [x] 2 new agent tools: `knowledge_search`, `grep_chunks`
+
+### Phase 5 ✅ (Modularization & Runtime)
+- [x] Extracted 11 `pkg/*` standalone Go modules with `go.mod`
+- [x] Go workspace (`go.work`) for local cross-module development
+- [x] LangGraph-style runtime (`pkg/runtime`): StateGraph, CompiledGraph, Invoke, InvokeParallel
+- [x] `pkg/agent` refactored with `SessionStore` + `EpistemicStore` interfaces (decoupled from db/knowledge)
+- [x] `pkg/booktools` plan/execute pipeline with checkpointing
+- [x] GitHub Actions CI/CD: test matrix, lint, security (govulncheck, CodeQL), GoReleaser
+- [x] `make check` covers root + all `pkg/*` modules
 
 ### Phase 2 (planned)
 - [ ] Word count progress bars per chapter (NaNoWriMo-style)
