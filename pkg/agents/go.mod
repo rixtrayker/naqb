@@ -1,6 +1,6 @@
 module github.com/amr/naqb/pkg/agents
 
-go 1.26.1
+go 1.26.3
 
 require gopkg.in/yaml.v3 v3.0.1
 

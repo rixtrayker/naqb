@@ -1,2 +1,3 @@
 module github.com/amr/naqb/pkg/research
-go 1.26.1
+
+go 1.26.3

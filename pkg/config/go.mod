@@ -1,6 +1,6 @@
 module github.com/amr/naqb/pkg/config
 
-go 1.26.1
+go 1.26.3
 
 require github.com/amr/naqb/pkg/log v0.0.0
 
