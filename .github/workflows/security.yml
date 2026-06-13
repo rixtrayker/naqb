@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Run gosec (root)
-        uses: securego/gosec@v2.25.0
+        uses: securego/gosec@v2.27.1
         continue-on-error: true
         env:
           GOTOOLCHAIN: auto
